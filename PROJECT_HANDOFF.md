@@ -1,203 +1,119 @@
-# 剑与魔法竞技场原型对话浓缩记录
+# Gamefight Project Handoff
 
-更新时间：2026-05-20
+## Current Direction
 
-## 项目定位
+Gamefight is now a short-session roguelite survivor demo:
 
-这是一个用于验证玩法的网页小游戏原型，目标是做成类似微信小游戏、土豆兄弟、Vampire Survivors 轻量割草方向的剑与魔法 Action Defense / Roguelite Demo。
+- One unified protagonist.
+- Three starting weapons: Knife, MagicMissile, Dart.
+- Fast start from the title screen.
+- Combat upgrades, intermission rooms, blessings, relics, shop items, and weapon synergies are separate systems.
+- Normal run goal is floor 9; floors 10-20 are deep challenge.
 
-当前项目是零依赖 HTML5 Canvas 原型，方便部署到 GitHub Pages，并用 iOS 手机浏览器测试。
+The old three-character and class-transfer systems have been removed from the active codebase.
 
-本地路径：
+## Runtime Files
 
-```text
-C:\Users\admin\Documents\Codex\2026-05-20\new-chat
-```
+- `index.html`: DOM structure and modal containers.
+- `styles.css`: layout, HUD, modal, joystick, and sprite-avatar styling.
+- `src/game.js`: current game loop and all active gameplay logic.
+- `assets/sprites/`: runtime sprite assets for the protagonist, weapon cards, and weapon effects.
+- `assets/audio/`: audio samples and procedural fallback sound hooks.
 
-主要文件：
+## Current Gameplay Systems
 
-```text
-index.html
-styles.css
-src/game.js
-README.md
-```
+- Start flow:
+  - Single `开始冒险` entry.
+  - Uses the last selected weapon when available.
+  - Opens weapon selection only when there is no saved starting weapon or the player chooses to change weapon after a run.
 
-本地服务曾使用：
+- Player state:
+  - `weapons`
+  - `blessings`
+  - `items` / `relics`
+  - `synergies`
+  - `startingWeapon`
+  - `highestSynergy`
+  - `runStats`
+  - reserved `reviveCurrency`
+
+- Weapons:
+  - Knife: close-range cone slash.
+  - MagicMissile: homing projectile.
+  - Dart: piercing outbound and returning line attack.
+
+- Blessings:
+  - Wind
+  - Arcane
+  - Blood
+  - Curse
+
+- Synergies:
+  - Knife + MagicMissile: 奥术剑阵
+  - Knife + Dart: 回旋刃舞
+  - MagicMissile + Dart: 符文飞镖
+  - All three weapons: 三相爆发
+
+## Rooms And Rewards
+
+Combat level-up rewards are separate from floor-end rooms.
+
+Floor-end rooms include:
+
+- Shrine: blessings.
+- Forge: weapon upgrades.
+- Relic Chest: relics and items.
+- Supply: healing, gold, XP, temporary help.
+- Shop: paid non-blessing goods only.
+
+Shop rules:
+
+- No blessings.
+- No class-transfer content.
+- No direct base-stat products.
+- Keep shop offers small for mobile readability.
+
+## Mobile Notes
+
+- Touch movement uses a dynamic virtual joystick centered on the first touch point.
+- Player movement uses joystick direction, never touch-position snapping.
+- Canvas DPR, enemy cap, particles, effects, and offscreen indicators are capped more aggressively on small screens.
+- The current target is stable mobile-web play rather than maximum particle density.
+
+## Sprite Assets
+
+The active runtime sprite files are:
+
+- `hero_avatar.png`
+- `hero_spritesheet.png`
+- `weapon_knife.png`
+- `weapon_magicMissile.png`
+- `weapon_dart.png`
+- `effect_knife_slash.png`
+- `effect_magic_missile.png`
+- `effect_dart_trail.png`
+
+The protagonist and weapon sprites are generated from the user-provided reference images.
+
+## Verification Checklist
+
+Before handoff, run:
 
 ```powershell
-python -m http.server 5173 --bind 0.0.0.0
+node --check src\game.js
 ```
 
-访问地址：
+Then load:
 
 ```text
 http://127.0.0.1:5173/
-http://192.168.1.101:5173/
 ```
 
-## 玩法方向
+Check:
 
-核心玩法是俯视角剑与魔法竞技场：
-
-1. 选择人物。
-2. 进入竞技场。
-3. 怪物从周围刷新并向玩家靠拢。
-4. 玩家自由移动，角色自动攻击。
-5. 击杀怪物直接获得经验，金币作为唯一掉落物。
-6. 升级时出现三张卡片，选择职业专属强化。
-7. 每 5 层进入商店。
-8. 第 5、10、15、20 层分别出现头目、精英怪、副首领、Boss。
-9. 升级会获得技能点，技能点可用于人物天赋树。
-
-玩法风格希望更偏 Roguelite、割草、碎片化时间游玩，而不是飞机子弹或左右射击。
-
-## 当前已实现/已调整
-
-### 人物与职业
-
-当前默认三名角色：
-
-- 文帝：近战冒险者，目前定位为高生命、高防御、低攻击、短距离。
-- 麦克：远程冒险者，发射魔法飞弹，目前定位为低生命、低防御、高攻击、中距离。
-- 铭：远程冒险者，投掷飞镖，目前定位为低生命、低防御、中攻击、远距离。
-
-已从“3 级转职”调整为“开局选人即确定职业方向”，后续升级池按角色/职业出现。
-
-### 操作
-
-- 手机端已从固定底部摇杆改为隐藏式全屏摇杆。
-- 在屏幕任意位置按住并拖动即可移动。
-- 已针对 iOS 长按选中、全选菜单做了 CSS 和事件层禁用。
-- 音频使用 Web Audio API 合成，尝试在切后台、息屏恢复、重新触摸时恢复 AudioContext。
-
-### 战斗
-
-- 角色会根据攻击方式自动寻找目标。
-- 文帝近战挥砍。
-- 麦克魔法飞弹。
-- 铭飞镖。
-- 怪物有对象池、粒子池、飘字池、特效池，避免频繁创建对象导致卡顿。
-- 当前每层有生成上限，避免无限刷怪。
-
-### UI
-
-已做过一版 HUD 重排：
-
-- 左上：人物头像、生命条、经验条。
-- 中上：当前层、倒计时、剩余怪物。
-- 右上：金币、钻石。
-- Debug/FPS 面板已要求关闭，不再作为正式 UI 显示。
-
-升级窗口：
-
-- 标题从“选择强化”改为“升级了！”。
-- 三张卡片展开。
-- 有防误触锁定。
-- 选择后有燃烧/吸收动画。
-
-商店：
-
-- 已新增商店购买确认弹窗。
-- 点击商品不立刻扣金币。
-- 只有点击确认购买后才结算金币。
-- 金币不足会提示。
-- 已扩展商店商品池到 20 种。
-- 已加入商店刷新按钮。
-- 商店卡片有独立图标。
-- 商店出现时有特效。
-
-音效：
-
-- 使用 `sound-fx-for-video` skill 的思路，以 Web Audio API 合成。
-- 已有挥砍、魔法、飞镖、金币、经验、受伤、Boss、卡片发牌、燃烧、附体、商店、点击、确认、失败、刷新等合成音效方向。
-
-素材策略：
-
-- 用户多次要求调用 skills / gptimage2 生成魔法飞弹、飞镖、升级特效等。
-- 当前小型弹体与 UI 图标主要用 Canvas/SVG 代码原生实现，便于 GitHub Pages 直接跑。
-- 后续如需要真正位图素材，可再用 imagegen skill 生成并落地到项目资源目录。
-
-## 最近一次用户新增需求
-
-下一轮需要重点实现/修正以下 14 条：
-
-1. 商店改为每五层开启一次，不再每层开启。
-2. 敌人数量、生命、防御、攻击等数值需要动态平衡：前期低，后期高。
-3. 开局对白文字排版要更清楚，人物名和说话内容要区分，让用户知道是人物在说话。
-4. 到操作提示时，操作提示也需要单独弹窗交互，排版和对白区分。
-5. HUD 中人物头像、血条、当前层/波数提示、金币、钻石要大小对齐，避免各大各小。
-6. 购买商品的 UI 大小目前不一致，需要统一。
-7. 商店金币购买时要有单独购买确认音效，并通过 skills 思路生成/合成。
-8. 选人大厅选择人物后，增加“是否确认选择”的环节。
-9. 经验不再作为掉落物出现，击杀怪物后直接增加经验；只有金币掉落。
-10. 点击头像可以查看人物属性信息面板，并配套独立关闭按钮；底部人物信息删除。
-11. 升级动画要更华丽，配合 skills / gptimage2 方向生成更酷炫效果。
-12. 地图扩大，视角跟随人物上下左右移动，整体缩小，让视野更开阔，不再固定在屏幕内。
-13. 角色信息最终定位：
-    - 文帝：高生命、高防御、低攻击、短距离。
-    - 麦克：低生命、低防御、高攻击、中距离。
-    - 铭：低生命、低防御、中攻击、远距离。
-14. 每次按键都要有反馈，让交互更丝滑。
-15. 血条和经验条改为纯色，不要渐变色。
-
-备注：用户编号里有两个“3”，并额外有“3.5”，所以这里整理为 15 个实际任务点。
-
-## 当前代码注意事项
-
-### 可能需要优先检查
-
-上一轮改动较多，建议下一次继续前先检查：
-
-- 真机 iOS 上隐藏式摇杆手感是否还需要继续调灵敏度。
-- 商店购买成功流在不同金币数量下是否都符合预期。
-- 第 10 / 15 / 20 层特殊怪强度是否需要继续微调。
-- 后续如果要替换成正式素材，再把 Canvas 临时像素图和 SVG 图标替换成生成资产。
-
-### 近期验证结果
-
-已用浏览器验证过：
-
-- 标题页可进入人物选择大厅。
-- 人物大厅有三张角色卡。
-- 选择人物后会出现确认选择弹窗。
-- 确认人物后会出现人物对白窗口，不显示“开局对白”字样。
-- 对白最后会切换成单独样式的操作提示。
-- 点击头像可以打开人物属性面板。
-- Debug 面板 CSS 上已隐藏。
-- 血条和经验条为纯色。
-- 第 1 层清完不会进商店；第 5 层会进入商店。
-- 商店能展示 4 个商品。
-- 点击商品可以打开购买确认弹窗。
-- 金币不足会出现文字提示。
-- 取消购买不会扣金币。
-- 右下角齿轮会打开设置菜单。
-- 设置菜单包含人物天赋、游戏设置、保存进度、返回游戏。
-- 三个人物都有各自的天赋树雏形和职业玩法天赋。
-- 怪物主体已经改成混乱变形动画。
-
-## 设计倾向
-
-整体方向：
-
-- 不是营销页，而是直接可玩的手机网页原型。
-- UI 要偏清晰、轻量、游戏化。
-- 图标可以用 SVG/Canvas 先代替，后续换资源。
-- 手机端优先，iOS Safari/微信浏览器体验要重点照顾。
-- 所有窗口弹出都要有短暂防误触和过渡动画。
-- 战斗体验要前期不压迫，后期逐步增长压力。
-
-## 下一步建议实施顺序
-
-1. 已实现“选人确认弹窗”。
-2. 已拆分“人物对白”和“操作提示”的弹窗排版。
-3. 已重做 HUD 对齐，并将血条/经验条改为纯色。
-4. 已调整商店为每 5 层开启，并统一商品卡和确认弹窗尺寸。
-5. 已改为击杀直接获得经验，只保留金币掉落。
-6. 已扩大地图并加入相机跟随。
-7. 已增加敌人数值曲线：数量、生命、防御、攻击、速度随层数提高。
-8. 已增加头像点击属性面板。
-9. 已增加商店购买确认音效和全局按钮反馈。
-10. 已强化升级后的职业特效和粒子反馈。
-11. 已新增设置菜单、音量调节、进度保存入口。
-12. 已新增三人物天赋树和升级技能点。
+- Title screen enters combat.
+- Sprite avatar appears in the HUD.
+- Player can move with keyboard and mobile joystick.
+- Weapon effects appear during attacks.
+- No console errors.
+- Mobile viewport stays responsive.
