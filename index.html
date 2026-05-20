@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0c1120" />
-    <title>剑与魔法竞技场原型</title>
+    <title>Gamefight 割草肉鸽 Demo</title>
+    <link rel="icon" type="image/png" href="assets/sprites/hero_avatar.png" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="shell">
-      <section class="game-wrap" aria-label="剑与魔法竞技场游戏原型">
+      <section class="game-wrap" aria-label="Gamefight 割草肉鸽 Demo">
         <canvas id="game" aria-label="游戏画布"></canvas>
 
         <div class="hud-player" aria-label="人物状态">
@@ -53,7 +54,7 @@
             <span class="hud-icon build-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M13 2 4 13h7l-1 9 10-13h-7l1-7Z" /></svg>
             </span>
-            <strong id="build">未选择 · 请选择人物</strong>
+            <strong id="build">未选择 · 请选择初始武器</strong>
           </div>
           <button id="pause" type="button" aria-label="打开设置">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 3a8 8 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5A8.3 8.3 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5l.4 3h4l.4-3a8 8 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" /></svg>
@@ -67,17 +68,22 @@
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
         <pre id="debug" class="debug" aria-label="实时调试监测"></pre>
 
-        <div id="level-up" class="modal upgrade-modal hidden" aria-label="技能强化选择">
+        <div id="level-up" class="modal upgrade-modal hidden" aria-label="战斗中升级奖励">
           <div class="modal-panel">
             <h2>升级了！</h2>
+            <div class="reward-toolbar">
+              <span id="upgrade-note">战斗中成长</span>
+              <button id="refresh-upgrades" type="button" class="small-button">刷新 10金</button>
+            </div>
             <div id="upgrade-items" class="choice-grid"></div>
           </div>
         </div>
 
-        <div id="shop" class="modal shop-modal hidden" aria-label="商店">
+        <div id="shop" class="modal shop-modal hidden" aria-label="层间房间">
           <div class="modal-panel">
-            <span class="modal-kicker">层间补给</span>
-            <h2>商店</h2>
+            <span id="shop-kicker" class="modal-kicker">层间房间</span>
+            <h2 id="shop-title">临时商店</h2>
+            <p id="shop-copy" class="modal-copy">价格不算公道，但你可能没有更好的选择。</p>
             <div class="shop-toolbar">
               <span id="shop-gold">金币 0</span>
               <button id="refresh-shop" type="button" class="small-button">刷新 12金</button>
@@ -101,47 +107,76 @@
           </div>
         </div>
 
-        <div id="hero-confirm" class="modal hero-confirm-modal hidden" aria-label="确认选择人物">
+        <div id="stage-summary" class="modal stage-modal hidden" aria-label="阶段结算">
+          <div class="modal-panel stage-panel">
+            <span class="modal-kicker">阶段结算</span>
+            <h2 id="stage-title">第 3 层完成</h2>
+            <div id="stage-body" class="stats-body"></div>
+            <div class="dialog-actions">
+              <button id="stage-settle" type="button" class="ghost-button">暂时结算</button>
+              <button id="stage-continue" type="button" class="continue-button">继续深入</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="result-modal" class="modal result-modal hidden" aria-label="本局结算">
+          <div class="modal-panel result-panel">
+            <span class="modal-kicker">本局结算</span>
+            <h2 id="result-title">英雄倒下</h2>
+            <div id="result-body" class="stats-body"></div>
+            <div class="result-actions">
+              <button id="retry-run" type="button" class="continue-button primary">再来一局</button>
+              <button id="change-weapon" type="button" class="ghost-button">换初始武器</button>
+              <button id="result-lobby" type="button" class="ghost-button">返回大厅</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="boss-cue" class="modal cue-modal hidden" aria-label="强敌出现提示">
+          <div class="modal-panel cue-panel">
+            <span id="boss-cue-kicker" class="modal-kicker">强敌出现</span>
+            <h2 id="boss-cue-title">某处出现了可怕的气息。</h2>
+            <p id="boss-cue-text" class="modal-copy"></p>
+            <button id="boss-cue-continue" type="button" class="continue-button">点击继续</button>
+          </div>
+        </div>
+
+        <div id="hero-confirm" class="modal hero-confirm-modal hidden" aria-label="确认初始武器">
           <div class="modal-panel confirm-panel">
-            <span class="modal-kicker">确认出战</span>
+            <span class="modal-kicker">初始武器详情</span>
             <div id="hero-confirm-avatar" class="hero-avatar">?</div>
             <h2 id="hero-confirm-title">确认选择</h2>
             <p id="hero-confirm-text" class="modal-copy"></p>
             <div class="dialog-actions">
               <button id="hero-confirm-cancel" type="button" class="ghost-button">重新选择</button>
-              <button id="hero-confirm-ok" type="button" class="continue-button">确认出战</button>
+              <button id="hero-confirm-ok" type="button" class="continue-button">开始战斗</button>
             </div>
           </div>
         </div>
 
-        <div id="hero-select" class="modal hero-modal hidden" aria-label="人物选择大厅">
+        <div id="hero-select" class="modal hero-modal hidden" aria-label="初始武器选择">
           <div class="modal-panel hero-panel">
-            <span class="modal-kicker">人物选择大厅</span>
-            <h2>选择冒险者</h2>
-            <p class="modal-copy">
-              选择一名冒险者进入竞技场。每个人的初始攻击、生命、防御和成长方向都不同。
-            </p>
+            <span class="modal-kicker">一个主角 · 三种开局</span>
+            <h2>选择初始武器</h2>
+            <p class="modal-copy">开局只选武器。后续通过升级、遗物和祝福凑出组合。</p>
             <div class="hero-grid">
-              <button class="hero-card" type="button" data-hero="wendi" style="--card-color: #ffe66d">
-                <span class="hero-avatar hero-warrior">文</span>
-                <strong>文帝</strong>
-                <em>近战冒险者</em>
-                <span>靠近怪物后自动挥剑，生命和防御较高，攻击稳定但距离较短。</span>
-                <small>高生命 · 高防御 · 短距离</small>
+              <button class="hero-card" type="button" data-weapon="knife" style="--card-color: #ffe66d">
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_knife.png')" aria-label="Knife">刀</span>
+                <strong>Knife 刀</strong>
+                <em>近战 · 收割</em>
+                <span>近距离扇形自动攻击，适合高风险近身清怪。</span>
               </button>
-              <button class="hero-card" type="button" data-hero="mike" style="--card-color: #bdb2ff">
-                <span class="hero-avatar hero-mage">麦</span>
-                <strong>麦克</strong>
-                <em>远程冒险者</em>
-                <span>发射奥术魔法飞弹，生命防御较低，单发伤害高，射程中等。</span>
-                <small>低防御 · 高攻击 · 中距离</small>
+              <button class="hero-card" type="button" data-weapon="magicMissile" style="--card-color: #bdb2ff">
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_magicMissile.png')" aria-label="MagicMissile">弹</span>
+                <strong>MagicMissile</strong>
+                <em>远程 · 追踪</em>
+                <span>自动追踪敌人，适合稳定输出和法术连锁。</span>
               </button>
-              <button class="hero-card" type="button" data-hero="ming" style="--card-color: #7ae582">
-                <span class="hero-avatar hero-dart">铭</span>
-                <strong>铭</strong>
-                <em>远程冒险者</em>
-                <span>投掷穿透飞镖，生命防御较低，攻击中等，攻击距离最远。</span>
-                <small>低防御 · 中攻击 · 长距离</small>
+              <button class="hero-card" type="button" data-weapon="dart" style="--card-color: #7ae582">
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_dart.png')" aria-label="Dart">镖</span>
+                <strong>Dart 飞镖</strong>
+                <em>回旋 · 轨迹</em>
+                <span>投出后返回玩家，飞出和返回都能造成伤害。</span>
               </button>
             </div>
           </div>
@@ -161,11 +196,11 @@
           </div>
         </div>
 
-        <div id="hero-stats" class="modal stats-modal hidden" aria-label="人物属性">
+        <div id="hero-stats" class="modal stats-modal hidden" aria-label="本局构筑">
           <div class="modal-panel stats-panel">
             <button id="stats-close" type="button" class="close-button" aria-label="关闭属性面板">×</button>
-            <span class="modal-kicker">人物属性</span>
-            <h2 id="stats-title">未选择</h2>
+            <span class="modal-kicker">本局构筑</span>
+            <h2 id="stats-title">游隙者</h2>
             <div id="stats-body" class="stats-body"></div>
           </div>
         </div>
@@ -173,43 +208,45 @@
         <div id="settings" class="modal settings-modal hidden" aria-label="设置">
           <div class="modal-panel settings-panel">
             <button id="settings-close" type="button" class="close-button" aria-label="关闭设置">×</button>
-            <span class="modal-kicker">战斗菜单</span>
-            <h2 id="settings-title">设置</h2>
+            <span class="modal-kicker">暂停</span>
+            <h2 id="settings-title">战斗菜单</h2>
             <div id="settings-menu" class="settings-menu">
-              <button id="open-talents" type="button">人物天赋</button>
+              <button id="resume-run" type="button">继续游戏</button>
+              <button id="restart-run" type="button">重新开始本局</button>
+              <button id="return-lobby" type="button">返回大厅</button>
+              <button id="open-help" type="button">查看说明</button>
               <button id="open-audio" type="button">游戏设置</button>
-              <button id="save-progress" type="button">保存进度</button>
-              <button id="return-game" type="button">返回游戏</button>
             </div>
             <div id="settings-content" class="settings-content hidden"></div>
           </div>
         </div>
 
         <div id="overlay" class="overlay">
-          <h1>剑与魔法竞技场</h1>
-          <p>
-            点击开始后先选择人物。进入战斗后，在屏幕任意位置按住拖动移动，
-            角色会根据职业自动攻击，清完本层怪物后推进到下一层。
+          <h1>Gamefight</h1>
+          <p id="profile-summary">
+            三种初始武器，一局 3-5 分钟。凑组合，清怪群，打到第 9 层即可完成普通局。
           </p>
-          <button id="start" type="button">开始冒险</button>
+          <div class="overlay-actions">
+            <button id="start" type="button">开始冒险</button>
+          </div>
         </div>
       </section>
 
       <aside class="notes" aria-label="玩法说明">
-        <h2>竞技场原型</h2>
+        <h2>碎片时间割草</h2>
         <p>
-          这版是偏土豆兄弟的剑与魔法小竞技场：自由移动、四周刷怪、自动攻击、经验升级、
-          职业分化，以及层间金币商店。
+          一个主角，三种初始武器，升级拿武器和遗物，层间拿祝福和组合方向。
+          普通局第 9 层闭环，之后可以继续深入挑战第 20 层。
         </p>
         <ul>
-          <li>开局选择三名冒险者：文帝、麦克、铭。</li>
-          <li>每层怪物数量有限，每五层进入一次商店。</li>
-          <li>升级后只出现当前人物职业对应的技能强化。</li>
-          <li>弹窗有入场动画和短暂点击锁，避免手机误触。</li>
+          <li>快速开始会使用上一次选择的初始武器。</li>
+          <li>战斗升级、层间房间、商店商品彼此分离。</li>
+          <li>祝福只来自神龛、Boss、精英和特殊奖励，不会进商店。</li>
+          <li>死亡后可立刻用同一武器再来一局。</li>
         </ul>
       </aside>
     </main>
 
-    <script defer src="./src/game.js?v=24"></script>
+    <script defer src="./src/game.js?v=25"></script>
   </body>
 </html>

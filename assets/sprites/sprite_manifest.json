@@ -1,0 +1,136 @@
+{
+  "cell": 128,
+  "hero": {
+    "file": "hero_spritesheet.png",
+    "avatar": "hero_avatar.png",
+    "frameWidth": 128,
+    "frameHeight": 128,
+    "columns": 6,
+    "rows": 6,
+    "animations": {
+      "idle": {
+        "row": 0,
+        "frames": 6,
+        "fps": 7
+      },
+      "move": {
+        "row": 1,
+        "frames": 6,
+        "fps": 10
+      },
+      "attackKnife": {
+        "row": 2,
+        "frames": 6,
+        "fps": 14
+      },
+      "attackMagic": {
+        "row": 3,
+        "frames": 6,
+        "fps": 12
+      },
+      "attackDart": {
+        "row": 4,
+        "frames": 6,
+        "fps": 13
+      },
+      "hurt": {
+        "row": 5,
+        "frames": 6,
+        "fps": 12
+      }
+    }
+  },
+  "weapons": {
+    "knife": "weapon_knife.png",
+    "magicMissile": "weapon_magicMissile.png",
+    "dart": "weapon_dart.png"
+  },
+  "weaponSheet": {
+    "file": "weapon_spritesheet.png",
+    "frameWidth": 128,
+    "frameHeight": 128,
+    "frames": 3
+  },
+  "effects": {
+    "knife_slash": {
+      "file": "effect_knife_slash.png",
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frames": 6
+    },
+    "magic_missile": {
+      "file": "effect_magic_missile.png",
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frames": 7
+    },
+    "dart_trail": {
+      "file": "effect_dart_trail.png",
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frames": 7
+    }
+  },
+  "sourceBoxes": {
+    "hero": [
+      [
+        48,
+        208,
+        440,
+        710
+      ],
+      [
+        486,
+        208,
+        782,
+        710
+      ],
+      [
+        883,
+        209,
+        1240,
+        710
+      ],
+      [
+        1312,
+        209,
+        1604,
+        710
+      ]
+    ],
+    "weapons": [
+      [
+        96,
+        248,
+        487,
+        675
+      ],
+      [
+        621,
+        312,
+        1001,
+        653
+      ],
+      [
+        1155,
+        301,
+        1552,
+        657
+      ]
+    ],
+    "effectRows": [
+      [
+        75,
+        332
+      ],
+      [
+        424,
+        599
+      ],
+      [
+        699,
+        851
+      ]
+    ]
+  }
+}
