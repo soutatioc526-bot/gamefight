@@ -349,7 +349,9 @@ button {
 }
 
 .build-stat {
-  display: none;
+  width: min(268px, calc(100vw - 76px));
+  display: flex;
+  pointer-events: auto;
 }
 
 .label {
@@ -372,6 +374,9 @@ button {
 
 .build-stat strong {
   max-width: 100%;
+  white-space: normal;
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 #pause {
@@ -792,7 +797,8 @@ button {
 }
 
 .continue-button.hidden,
-.ghost-button.hidden {
+.ghost-button.hidden,
+.small-button.hidden {
   display: none;
 }
 
@@ -993,6 +999,7 @@ button {
   color: #cbd6e8;
   font-size: 12px;
   line-height: 1.35;
+  white-space: pre-line;
 }
 
 .choice-card em {

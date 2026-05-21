@@ -29,7 +29,7 @@
         </div>
 
         <div class="hud-center" aria-label="当前关卡信息">
-          <strong id="wave">第1层 Lv.1</strong>
+          <strong id="wave">第1层</strong>
           <span id="timer">00:00</span>
           <span id="remaining">剩余0</span>
         </div>
@@ -70,9 +70,9 @@
 
         <div id="level-up" class="modal upgrade-modal hidden" aria-label="战斗中升级奖励">
           <div class="modal-panel">
-            <h2>升级了！</h2>
+            <h2>人物变强了</h2>
             <div class="reward-toolbar">
-              <span id="upgrade-note">战斗中成长</span>
+              <span id="upgrade-note">经验升级只强化人物</span>
               <button id="refresh-upgrades" type="button" class="small-button">刷新 10金</button>
             </div>
             <div id="upgrade-items" class="choice-grid"></div>
@@ -82,7 +82,7 @@
         <div id="shop" class="modal shop-modal hidden" aria-label="层间房间">
           <div class="modal-panel">
             <span id="shop-kicker" class="modal-kicker">层间房间</span>
-            <h2 id="shop-title">临时商店</h2>
+            <h2 id="shop-title">裂隙商店</h2>
             <p id="shop-copy" class="modal-copy">价格不算公道，但你可能没有更好的选择。</p>
             <div class="shop-toolbar">
               <span id="shop-gold">金币 0</span>
@@ -97,12 +97,12 @@
         <div id="buy-dialog" class="modal buy-modal hidden" aria-label="确认购买">
           <div class="modal-panel buy-panel">
             <div id="buy-icon" class="buy-icon" aria-hidden="true"></div>
-            <h2 id="buy-title">确认购买</h2>
+            <h2 id="buy-title">这笔买卖</h2>
             <p id="buy-text" class="modal-copy"></p>
             <strong id="buy-price" class="buy-price"></strong>
             <div class="dialog-actions">
-              <button id="buy-cancel" type="button" class="ghost-button">取消</button>
-              <button id="buy-confirm" type="button" class="continue-button">确认购买</button>
+              <button id="buy-cancel" type="button" class="ghost-button">先不交钱</button>
+              <button id="buy-confirm" type="button" class="continue-button">成交</button>
             </div>
           </div>
         </div>
@@ -113,7 +113,7 @@
             <h2 id="stage-title">第 3 层完成</h2>
             <div id="stage-body" class="stats-body"></div>
             <div class="dialog-actions">
-              <button id="stage-settle" type="button" class="ghost-button">暂时结算</button>
+              <button id="stage-settle" type="button" class="ghost-button">带着奖励离开</button>
               <button id="stage-continue" type="button" class="continue-button">继续深入</button>
             </div>
           </div>
@@ -126,7 +126,7 @@
             <div id="result-body" class="stats-body"></div>
             <div class="result-actions">
               <button id="retry-run" type="button" class="continue-button primary">再来一局</button>
-              <button id="change-weapon" type="button" class="ghost-button">换初始武器</button>
+              <button id="change-weapon" type="button" class="ghost-button">换把武器</button>
               <button id="result-lobby" type="button" class="ghost-button">返回大厅</button>
             </div>
           </div>
@@ -149,7 +149,7 @@
             <p id="hero-confirm-text" class="modal-copy"></p>
             <div class="dialog-actions">
               <button id="hero-confirm-cancel" type="button" class="ghost-button">重新选择</button>
-              <button id="hero-confirm-ok" type="button" class="continue-button">开始战斗</button>
+              <button id="hero-confirm-ok" type="button" class="continue-button">进入裂隙</button>
             </div>
           </div>
         </div>
@@ -158,25 +158,25 @@
           <div class="modal-panel hero-panel">
             <span class="modal-kicker">一个主角 · 三种开局</span>
             <h2>选择初始武器</h2>
-            <p class="modal-copy">开局只选武器。后续通过升级、遗物和祝福凑出组合。</p>
+            <p class="modal-copy">开局只选武器。捡经验强人物，找铁匠强武器，打 Boss 拿神明祝福。</p>
             <div class="hero-grid">
               <button class="hero-card" type="button" data-weapon="knife" style="--card-color: #ffe66d">
                 <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_knife.png')" aria-label="Knife">刀</span>
-                <strong>Knife 刀</strong>
-                <em>近战 · 收割</em>
-                <span>近距离扇形自动攻击，适合高风险近身清怪。</span>
+                <strong>裂隙短刃</strong>
+                <em>近身赌命流</em>
+                <span>离怪越近，刀越狠。适合冲进怪群，把危险变成收割。</span>
               </button>
               <button class="hero-card" type="button" data-weapon="magicMissile" style="--card-color: #bdb2ff">
-                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_magicMissile.png')" aria-label="MagicMissile">弹</span>
-                <strong>MagicMissile</strong>
-                <em>远程 · 追踪</em>
-                <span>自动追踪敌人，适合稳定输出和法术连锁。</span>
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_magicMissile.png')" aria-label="秘银飞弹">弹</span>
+                <strong>秘银飞弹</strong>
+                <em>奥术弹幕流</em>
+                <span>不用瞄准，飞弹会自己找到猎物。活得越久，敌人越没地方躲。</span>
               </button>
               <button class="hero-card" type="button" data-weapon="dart" style="--card-color: #7ae582">
                 <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_dart.png')" aria-label="Dart">镖</span>
-                <strong>Dart 飞镖</strong>
-                <em>回旋 · 轨迹</em>
-                <span>投出后返回玩家，飞出和返回都能造成伤害。</span>
+                <strong>回旋飞镖</strong>
+                <em>拉扯收割流</em>
+                <span>真正的伤害发生在返回那一刻。边跑边布置死亡路线。</span>
               </button>
             </div>
           </div>
@@ -224,7 +224,7 @@
         <div id="overlay" class="overlay">
           <h1>Gamefight</h1>
           <p id="profile-summary">
-            三种初始武器，一局 3-5 分钟。凑组合，清怪群，打到第 9 层即可完成普通局。
+            捡经验强人物，找铁匠强武器，打 Boss 拿神明祝福。第 9 层是普通局结算点。
           </p>
           <div class="overlay-actions">
             <button id="start" type="button">开始冒险</button>
@@ -233,20 +233,21 @@
       </section>
 
       <aside class="notes" aria-label="玩法说明">
-        <h2>碎片时间割草</h2>
+        <h2>裂隙里的短局肉鸽</h2>
         <p>
-          一个主角，三种初始武器，升级拿武器和遗物，层间拿祝福和组合方向。
-          普通局第 9 层闭环，之后可以继续深入挑战第 20 层。
+          一个主角，三种初始武器。经验升级只强化人物，铁匠只改武器，Boss 圣遗物才给神明祝福。
+          神龛是赌命交易，金币用来改命，不会卡住基础成长。
         </p>
         <ul>
           <li>快速开始会使用上一次选择的初始武器。</li>
-          <li>战斗升级、层间房间、商店商品彼此分离。</li>
-          <li>祝福只来自神龛、Boss、精英和特殊奖励，不会进商店。</li>
-          <li>死亡后可立刻用同一武器再来一局。</li>
+          <li>敌人会掉落经验晶体，必须靠近拾取才会升级。</li>
+          <li>第 5 层清怪后寻找神龛，第 10 层寻找铁匠。</li>
+          <li>第 9 层 Boss 会掉落圣遗物，拾取后选择神明祝福。</li>
         </ul>
       </aside>
     </main>
 
-    <script defer src="./src/game.js?v=25"></script>
+    <script defer src="./src/data/gameData.js?v=1"></script>
+    <script defer src="./src/game.js?v=27"></script>
   </body>
 </html>
