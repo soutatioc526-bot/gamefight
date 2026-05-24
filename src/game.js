@@ -1592,11 +1592,12 @@ Object.assign(RogueGame.prototype, {
     this.floorTimeLimit = 90 + Math.min(60, floor * 5);
     this.floorKills = 0;
     this.floorSpawned = 0;
-    this.floorSpawnLimit = this.cycleStep(floor) === 10 ? 0 : this.floorLimitFor(floor);
-    this.floorGoal = this.floorSpawnLimit + (this.specialForFloor(floor) ? 1 : 0);
+    const special = this.specialForFloor(floor);
+    this.floorSpawnLimit = special?.rank === "boss" ? 0 : this.floorLimitFor(floor);
+    this.floorGoal = this.floorSpawnLimit + (special ? 1 : 0);
     this.spawnTimer = floor === 1 ? 0.2 : 0.55;
     this.specialSpawned = false;
-    this.specialDefeated = !this.specialForFloor(floor);
+    this.specialDefeated = !special;
     this.bossRewardPending = false;
     this.safeEvent = null;
     this.currentFloorModifiers = this.nextFloorModifiers || {};
@@ -1611,7 +1612,7 @@ Object.assign(RogueGame.prototype, {
       1: `第 ${floor} 层：新循环起步。`,
       2: `第 ${floor} 层：裂隙祝福生效。`,
       4: `第 ${floor} 层：神龛之后，压力开始抬高。`,
-      5: `第 ${floor} 层：精英怪会检验你的走位。`,
+      5: `第 ${floor} 层：裂隙追猎者堵住了路。`,
       6: `第 ${floor} 层：怪群密度继续上升。`,
       7: `第 ${floor} 层：为铁匠前的金币做准备。`,
       9: `第 ${floor} 层：副首领会验证你的附魔。`,
@@ -1662,7 +1663,6 @@ Object.assign(RogueGame.prototype, {
 
   requestNextFloor(nextFloor, copy = "") {
     this.clearAllModals();
-    this.beginFloorTransition("leave");
     this.mode = "nextFloor";
     this.pendingNextFloor = nextFloor;
     this.currentRoom = {
@@ -1688,9 +1688,9 @@ Object.assign(RogueGame.prototype, {
     const loop = Math.floor((Math.max(1, floor) - 1) / (FLOOR_PLAN.cycleLength || 10));
     const pressure = Math.min(10, loop * 2);
     const map = {
-      5: { label: "裂隙精英", cue: `第 ${floor} 层的精英怪正在靠近。`, hp: 9 + pressure, radius: 2.15, color: rarityColor("elite"), rank: "elite" },
+      5: { label: "裂隙追猎者", cue: `第 ${floor} 层的裂隙追猎者正在靠近。`, hp: 10 + pressure, radius: 2.45, color: rarityColor("elite"), rank: "boss", escapeAtHalf: true, hpMult: 3 },
       9: { label: "副首领", cue: `第 ${floor} 层的副首领站在附魔刚成形的路口。`, hp: 13 + pressure, radius: 2.65, color: rarityColor("epic"), rank: "lieutenant" },
-      10: { label: "阶段 Boss", cue: `第 ${floor} 层的阶段 Boss 带着武器回声踏出裂隙。`, hp: 17 + pressure, radius: 3.05, color: rarityColor("legendary"), rank: "boss" },
+      10: { label: "阶段 Boss", cue: `第 ${floor} 层的阶段 Boss 带着武器回声踏出裂隙。`, hp: 17 + pressure, radius: 3.05, color: rarityColor("legendary"), rank: "boss", hpMult: 10 },
     };
     return map[this.cycleStep(floor)] || null;
   },
@@ -1969,6 +1969,35 @@ Object.assign(RogueGame.prototype, {
     for (const enemy of this.active.enemies || []) {
       if (enemy.rank !== "boss") continue;
       ctx.save();
+      if (enemy.bossState === "finalAoeWarn") {
+        ctx.fillStyle = "rgba(255,85,112,0.22)";
+        ctx.fillRect(WORLD.minX, WORLD.minY, WORLD.maxX - WORLD.minX, WORLD.maxY - WORLD.minY);
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.safeRadius || 96, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = "rgba(78,226,160,0.9)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.safeRadius || 96, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (enemy.bossState === "meteorWarn") {
+        const rocks = enemy.bossRocks || [];
+        for (let i = 0; i < rocks.length; i += 1) {
+          const rock = rocks[i];
+          ctx.fillStyle = i === enemy.bossRockIndex ? "rgba(255,85,112,0.3)" : "rgba(255,209,102,0.18)";
+          ctx.strokeStyle = i === enemy.bossRockIndex ? "rgba(255,255,255,0.82)" : "rgba(255,209,102,0.72)";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(rock.x, rock.y, rock.radius + 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "#51423b";
+          ctx.fillRect(rock.x - rock.radius, rock.y - rock.radius, rock.radius * 2, rock.radius * 2);
+        }
+      }
       if (enemy.bossState === "dashWarn") {
         ctx.translate(enemy.x, enemy.y);
         ctx.rotate(enemy.bossAngle || 0);
@@ -2360,13 +2389,25 @@ Object.assign(RogueGame.prototype, {
       ctx.translate(drop.x, drop.y);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = drop.color;
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = drop.kind === "coinBag" ? "#ffd166" : COLORS.gold;
+      ctx.shadowBlur = drop.kind === "weaponEcho" ? 18 : 6;
+      if (drop.kind === "weaponEcho") {
+        ctx.strokeStyle = "rgba(83,216,251,0.78)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, drop.radius + 9 + Math.sin(drop.pulse) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = drop.kind === "weaponEcho" ? COLORS.echo : drop.kind === "coinBag" ? "#ffd166" : COLORS.gold;
       ctx.beginPath();
       ctx.arc(0, 0, drop.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#5f4300";
-      if (drop.kind === "coinBag") {
+      if (drop.kind === "weaponEcho") {
+        ctx.fillStyle = "#07131d";
+        ctx.fillRect(-5, -7, 10, 14);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(-2, -10, 4, 20);
+      } else if (drop.kind === "coinBag") {
         roundRect(ctx, -5, -5, 10, 12, 3);
         ctx.fill();
       } else ctx.fillRect(-1.5, -4, 3, 8);
@@ -2853,8 +2894,8 @@ Object.assign(RogueGame.prototype, {
       kind: "special",
       rank: spec.rank,
       label: spec.label,
-      hp: 18 * spec.hp * scale.hp * (spec.rank === "boss" ? 10 : 1),
-      maxHp: 18 * spec.hp * scale.hp * (spec.rank === "boss" ? 10 : 1),
+      hp: 18 * spec.hp * scale.hp * (spec.hpMult || 1),
+      maxHp: 18 * spec.hp * scale.hp * (spec.hpMult || 1),
       speed: 31 * scale.speed,
       radius: 14 * spec.radius,
       attack: 6 * scale.attack * (spec.rank === "boss" ? 1.35 : 1) * (1 + (this.currentFloorModifiers.enemyDamageMult || 0)),
@@ -2882,10 +2923,12 @@ Object.assign(RogueGame.prototype, {
       bossWaveDamageTimer: 0,
       bossAngle: 0,
       bossHalfPhaseDone: false,
+      bossFinalLaserDone: false,
       bossLaserLines: [],
       bossLaserIndex: 0,
       bossLockTarget: null,
       invulnerable: false,
+      escapeAtHalf: Boolean(spec.escapeAtHalf),
     });
     this.specialSpawned = true;
     this.specialDefeated = false;
@@ -3440,6 +3483,10 @@ Object.assign(RogueGame.prototype, {
       if (enemy.burn > 0) enemy.hp -= dt * (5 + this.level * 0.6);
       if (enemy.rank === "boss") {
         this.updateBoss(enemy, dt);
+        if (enemy.escapedBoss) {
+          this.handleBossEscape(enemy, i);
+          return;
+        }
         enemy.x = clamp(enemy.x, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
         enemy.y = clamp(enemy.y, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
         if (enemy.hp <= 0) this.killEnemy(i);
@@ -3477,15 +3524,24 @@ Object.assign(RogueGame.prototype, {
       enemy.y += (dy / len) * enemy.speed * speedScale * dt;
     };
 
+    if (enemy.escapeAtHalf && enemy.hp <= enemy.maxHp * 0.5) {
+      enemy.escapedBoss = true;
+      return;
+    }
     if (!enemy.bossHalfPhaseDone && enemy.hp <= enemy.maxHp * 0.5) {
       this.startBossSplitPhase(enemy);
+      return;
+    }
+    if (enemy.bossHalfPhaseDone && !enemy.invulnerable && !enemy.bossFinalLaserDone && enemy.hp <= enemy.maxHp * 0.1) {
+      enemy.bossFinalLaserDone = true;
+      this.startBossFinalAoe(enemy);
       return;
     }
 
     if (!enemy.bossState || enemy.bossState === "idle") {
       moveTowardPlayer(0.42);
       if (enemy.bossTimer <= 0) {
-        const abilityCount = enemy.bossHalfPhaseDone ? 5 : 4;
+        const abilityCount = enemy.escapeAtHalf ? 4 : 5;
         const ability = Math.floor(Math.random() * abilityCount);
         enemy.bossAbilityIndex += 1;
         enemy.bossAngle = toPlayer;
@@ -3507,7 +3563,43 @@ Object.assign(RogueGame.prototype, {
           enemy.bossTimer = 3;
           enemy.bossLockTarget = { x: this.player.x, y: this.player.y };
         } else {
-          this.startBossLaserSequence(enemy);
+          this.startBossMeteorSequence(enemy);
+        }
+      }
+      return;
+    }
+
+    if (enemy.bossState === "finalAoeWarn") {
+      if (enemy.bossTimer <= 0) {
+        if (distance(enemy, this.player) > (enemy.safeRadius || 96) + this.player.radius) this.hurtPlayer(enemy.attack * 5, { halfHearts: 4 });
+        this.addEffect("triBurst", enemy.x, enemy.y, 180, COLORS.danger);
+        this.shake = Math.max(this.shake, 12);
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.45;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "meteorWarn") {
+      if (!enemy.bossRocks?.length) {
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.1;
+        return;
+      }
+      enemy.bossRockTimer -= dt;
+      if (enemy.bossRockTimer <= 0) {
+        const rock = enemy.bossRocks[enemy.bossRockIndex];
+        if (rock) {
+          if (distance(rock, this.player) <= rock.radius + 24 + this.player.radius) this.hurtPlayer(enemy.attack * 1.8);
+          this.addEffect("ring", rock.x, rock.y, rock.radius + 24, COLORS.danger);
+          this.shake = Math.max(this.shake, 6);
+        }
+        enemy.bossRockIndex += 1;
+        enemy.bossRockTimer = 0.72;
+        if (enemy.bossRockIndex >= enemy.bossRocks.length) {
+          enemy.bossRocks = [];
+          enemy.bossState = "idle";
+          enemy.bossTimer = 1.25;
         }
       }
       return;
@@ -3518,7 +3610,7 @@ Object.assign(RogueGame.prototype, {
       enemy.bossShotTimer -= dt;
       if (enemy.bossShotTimer <= 0) {
         enemy.bossShotTimer = 2;
-        for (let i = 0; i < 5; i += 1) this.spawnBossAoe(enemy);
+        for (let i = 0; i < 50; i += 1) this.spawnBossAoe(enemy);
       }
       if (!this.active.enemies.some((item) => item.phaseMinion && item.ownerBoss === enemy)) {
         enemy.invulnerable = false;
@@ -3532,7 +3624,7 @@ Object.assign(RogueGame.prototype, {
     if (enemy.bossState === "lockAim") {
       enemy.bossLockTarget = { x: this.player.x, y: this.player.y };
       if (enemy.bossTimer <= 0) {
-        this.fireBossMissile(enemy, enemy.bossLockTarget);
+        for (let i = 0; i < 10; i += 1) this.fireBossMissile(enemy, enemy.bossLockTarget, i);
         enemy.bossState = "idle";
         enemy.bossTimer = 1.1;
       }
@@ -3709,6 +3801,32 @@ Object.assign(RogueGame.prototype, {
     }
   },
 
+  startBossFinalAoe(enemy) {
+    enemy.bossState = "finalAoeWarn";
+    enemy.bossTimer = 3;
+    enemy.safeRadius = 98;
+    this.say("Boss 正在引爆全屏裂隙，靠近它脚下的安全范围！");
+  },
+
+  startBossMeteorSequence(enemy) {
+    const corners = [
+      { x: WORLD.minX + 120, y: WORLD.minY + 140 },
+      { x: WORLD.maxX - 120, y: WORLD.minY + 140 },
+      { x: WORLD.maxX - 120, y: WORLD.maxY - 140 },
+      { x: WORLD.minX + 120, y: WORLD.maxY - 140 },
+    ];
+    enemy.bossState = "meteorWarn";
+    enemy.bossTimer = 99;
+    enemy.bossRockIndex = 0;
+    enemy.bossRockTimer = 0.8;
+    enemy.bossRocks = corners.map((corner) => ({
+      x: corner.x + random(-42, 42),
+      y: corner.y + random(-42, 42),
+      radius: 34,
+    }));
+    this.say("巨石正在裂隙四角成形。");
+  },
+
   spawnBossAoe(enemy) {
     if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
     const effect = this.effectPool.get();
@@ -3728,9 +3846,12 @@ Object.assign(RogueGame.prototype, {
     this.active.effects.push(effect);
   },
 
-  fireBossMissile(enemy, target) {
+  fireBossMissile(enemy, target, index = 0) {
     const dx = target.x - enemy.x;
     const dy = target.y - enemy.y;
+    const base = Math.atan2(dy, dx);
+    const spread = (index - 4.5) * 0.055;
+    const angle = base + spread;
     const len = Math.hypot(dx, dy) || 1;
     if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
     const shot = this.effectPool.get();
@@ -3739,8 +3860,8 @@ Object.assign(RogueGame.prototype, {
       type: "bossMissile",
       x: enemy.x,
       y: enemy.y,
-      vx: (dx / len) * 260,
-      vy: (dy / len) * 260,
+      vx: Math.cos(angle) * (245 + index * 4),
+      vy: Math.sin(angle) * (245 + index * 4),
       radius: 8,
       color: COLORS.danger,
       damage: enemy.attack * 1.15,
@@ -3796,6 +3917,26 @@ Object.assign(RogueGame.prototype, {
     this.active.effects.push(shot);
   },
 
+  spawnBossEchoDrop(enemy) {
+    const reward = this.rollBossWeaponReward();
+    this.spawnDrop(enemy.x, enemy.y, "weaponEcho", 0, 15, {
+      vx: random(-24, 24),
+      vy: -70,
+      reward,
+    });
+  },
+
+  handleBossEscape(enemy, index) {
+    this.specialDefeated = true;
+    this.bossRewardPending = false;
+    this.burst(enemy.x, enemy.y, enemy.color, 28);
+    this.releaseActive(this.active.enemies, index, this.enemyPool);
+    this.releaseAll(this.active.enemies, this.enemyPool);
+    this.releaseAll(this.active.drops, this.dropPool);
+    this.say("怪物逃去了裂隙深处。");
+    this.requestNextFloor(this.floor + 1, "怪物逃去了裂隙深处，请前往寻找。");
+  },
+
   killEnemy(index) {
     const enemy = this.active.enemies[index];
     this.floorKills += 1;
@@ -3810,7 +3951,8 @@ Object.assign(RogueGame.prototype, {
     this.rollCoinDrops(enemy);
     if (enemy.rank === "boss") {
       this.bossRewardPending = true;
-      this.say("Boss 的武器回声浮现。");
+      this.spawnBossEchoDrop(enemy);
+      this.say("Boss 的武器回声掉落了。");
     }
     this.burst(enemy.x, enemy.y, enemy.color, enemy.rank === "small" ? 8 : 24);
     this.releaseActive(this.active.enemies, index, this.enemyPool);
@@ -3830,7 +3972,7 @@ Object.assign(RogueGame.prototype, {
     }
   },
 
-  hurtPlayer(amount) {
+  hurtPlayer(amount, options = {}) {
     if (this.player.invuln > 0) return;
     if (this.player.shield > 0) {
       this.player.shield = 0;
@@ -3838,8 +3980,9 @@ Object.assign(RogueGame.prototype, {
       this.player.invuln = 0.35 + this.upgradeStats.hurtIframes;
       return;
     }
-    this.hp -= HIT_HEART_DAMAGE;
-    this.floatText("-半颗", this.player.x, this.player.y - 38, COLORS.danger, { size: 14, life: 0.62, vy: -26 });
+    const halfHearts = Math.max(1, options.halfHearts || 1);
+    this.hp -= HIT_HEART_DAMAGE * halfHearts;
+    this.floatText(halfHearts === 1 ? "-半颗" : `-${halfHearts / 2}颗`, this.player.x, this.player.y - 38, COLORS.danger, { size: 14, life: 0.62, vy: -26 });
     this.player.flash = 0.18;
     this.player.invuln = 0.55 + this.upgradeStats.hurtIframes;
     this.player.hurtSpeedTimer = this.upgradeStats.hurtSpeedBoost > 0 ? 2.2 : 0;
@@ -3859,9 +4002,16 @@ Object.assign(RogueGame.prototype, {
     if (enemy.rank === "boss") {
       const range = ECONOMY.bossCoinAmount?.[this.floor] || ECONOMY.bossCoinAmount?.default || [40, 70];
       const gain = Math.ceil(randomInt(range[0], range[1]) * coinMult);
-      this.coins += gain;
-      this.runStats.coinsEarned += gain;
-      this.floatText(`Boss 金币 +${gain}`, enemy.x, enemy.y - enemy.radius - 28, COLORS.gold, { size: 18, life: 0.8, vy: -28 });
+      const count = 36;
+      for (let i = 0; i < count; i += 1) {
+        const angle = (i / count) * Math.PI * 2 + random(-0.16, 0.16);
+        const speed = random(95, 250);
+        this.spawnDrop(enemy.x, enemy.y, i % 7 === 0 ? "coinBag" : "coin", Math.max(1, Math.round(gain / count)), i % 7 === 0 ? 8 : 6, {
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+        });
+      }
+      this.floatText("金币喷涌！", enemy.x, enemy.y - enemy.radius - 28, COLORS.gold, { size: 18, life: 0.8, vy: -28 });
       return;
     }
     if (enemy.rank && enemy.rank !== "small") {
@@ -3881,11 +4031,12 @@ Object.assign(RogueGame.prototype, {
     }
   },
 
-  spawnDrop(x, y, kind, value, radius) {
+  spawnDrop(x, y, kind, value, radius, options = {}) {
     const drop = this.dropPool.get();
     const color = {
       coin: COLORS.gold,
       coinBag: COLORS.gold,
+      weaponEcho: COLORS.echo,
       material: COLORS.fire,
     }[kind] || COLORS.gold;
     Object.assign(drop, {
@@ -3893,12 +4044,13 @@ Object.assign(RogueGame.prototype, {
       kind,
       x,
       y,
-      vx: random(-34, 34),
-      vy: random(-34, 34),
+      vx: options.vx ?? random(-34, 34),
+      vy: options.vy ?? random(-34, 34),
       value,
       radius,
       color,
       pulse: random(0, Math.PI * 2),
+      reward: options.reward || null,
     });
     this.active.drops.push(drop);
   },
@@ -3935,6 +4087,14 @@ Object.assign(RogueGame.prototype, {
   },
 
   collectDrop(drop) {
+    if (drop.kind === "weaponEcho") {
+      this.bossRewardPending = false;
+      this.player.absorb = 0.8;
+      const reward = this.applyBossWeaponDrop(drop.reward || this.rollBossWeaponReward());
+      this.floatText(reward.title, this.player.x, this.player.y - 42, COLORS.echo, { size: 16, life: 0.9, vy: -26 });
+      this.openPostBossReward(reward);
+      return;
+    }
     this.coins += drop.value;
     this.runStats.coinsEarned += drop.value;
     this.player.absorb = 0.45;
@@ -3944,6 +4104,7 @@ Object.assign(RogueGame.prototype, {
 
   checkFloorClear() {
     const allSpawned = this.floorSpawned >= this.floorSpawnLimit;
+    if (this.bossRewardPending) return;
     if (this.mode === "combat" && allSpawned && this.specialDefeated && this.active.enemies.length === 0) this.finishFloor();
   },
 
@@ -4356,6 +4517,31 @@ Object.assign(RogueGame.prototype, {
     ui.shop.classList.remove("hidden");
   },
 
+  openPostBossReward(reward) {
+    const completedAllMaps = this.floor >= 40;
+    if (this.cycleStep(this.floor) === 10) {
+      this.runStats.completedNormal = true;
+      this.runStats.enteredDeep = this.floor >= 10;
+      this.profile.clearedNormalMode = true;
+      this.profile.unlockedDeepChallenge = true;
+      this.profile.clearedFirstTenthBoss = true;
+      this.unlockAchievement("clearFloor10");
+      this.writeProfile();
+    }
+    this.mode = "nextFloor";
+    this.pendingNextFloor = this.floor + 1;
+    this.currentRoom = {
+      id: "nextFloor",
+      title: completedAllMaps ? "四十层裂隙已通关" : reward.title,
+      copy: completedAllMaps ? "你已经突破 1-40 层全部地图。重新开始后可选择武器开启新一轮挑战。" : `${reward.copy}\n是否进入第 ${this.floor + 1} 层？`,
+      button: completedAllMaps ? "重新开始" : `进入第 ${this.floor + 1} 层`,
+    };
+    this.shopOffers = [];
+    this.renderIntermission();
+    ui.shop.classList.remove("hidden");
+    this.updateUi();
+  },
+
   completeSafeEvent(message) {
     if (this.safeEvent) {
       this.safeEvent.completed = true;
@@ -4388,11 +4574,6 @@ Object.assign(RogueGame.prototype, {
       this.unlockAchievement("reachFloor20");
     }
     this.writeProfile();
-    if (this.bossRewardPending && this.isBossWeaponDropFloor(this.floor)) {
-      this.bossRewardPending = false;
-      this.openBossWeaponReward();
-      return;
-    }
     this.requestNextFloor(this.floor + 1);
   },
 
@@ -4533,7 +4714,7 @@ Object.assign(RogueGame.prototype, {
     } else {
       ui.refreshShop.classList.add("hidden");
     }
-    ui.continueRun.textContent = room.confirmingEnchant ? "确认附魔" : isWeaponReward || isWeaponNotice ? room.button || "确认" : isNextFloor ? `确认进入第 ${this.pendingNextFloor} 层` : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
+    ui.continueRun.textContent = room.confirmingEnchant ? "确认附魔" : isWeaponReward || isWeaponNotice ? room.button || "确认" : isNextFloor ? room.button || `确认进入第 ${this.pendingNextFloor} 层` : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
     ui.continueRun.classList.toggle("hidden", !(isNextFloor || room.confirmingEnchant || (isWeaponReward && isCompletedSafe) || isWeaponNotice || isShop || (isCompletedSafe && !isWeaponReward)));
     ui.shopMessage.textContent = "";
     ui.shopItems.innerHTML = "";
@@ -4703,6 +4884,10 @@ Object.assign(RogueGame.prototype, {
       return;
     }
     if (this.mode === "nextFloor") {
+      if (this.floor >= 40 && this.currentRoom?.button === "重新开始") {
+        this.retryRun();
+        return;
+      }
       const next = this.pendingNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
       this.pendingNextFloor = null;
@@ -4777,7 +4962,7 @@ Object.assign(RogueGame.prototype, {
     this.player.invuln = Math.max(this.player.invuln || 0, 0.8);
     ui.bossCueKicker.textContent = spec.rank === "boss" ? "Boss 出现" : spec.rank === "lieutenant" ? "副首领出现" : "精英出现";
     ui.bossCueTitle.textContent = spec.cue;
-    ui.bossCueText.textContent = spec.rank === "boss" ? "击败它后出现 1 个武器回声结果，可刷新。" : `${spec.label} 正在靠近。`;
+    ui.bossCueText.textContent = spec.escapeAtHalf ? "打到半血后，它会逃向裂隙深处。" : spec.rank === "boss" ? "击败它后会在场内掉落武器回声。" : `${spec.label} 正在靠近。`;
     ui.bossCue.classList.remove("hidden");
   },
 
