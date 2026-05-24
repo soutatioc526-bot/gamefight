@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: dark;
   --bg: #0c1120;
   --panel: rgba(12, 17, 32, 0.78);
@@ -194,8 +194,61 @@ button {
   background: #4ee2a0;
 }
 
-.xp-meter i {
-  background: #53d8fb;
+.hp-meter {
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.hp-meter i {
+  display: none;
+}
+
+.hp-meter .heart-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  min-height: 18px;
+  color: #ff5570;
+  font-size: 14px;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.hp-meter .heart {
+  position: relative;
+  width: 15px;
+  height: 14px;
+  display: inline-block;
+}
+
+.hp-meter .heart::before {
+  content: "♥";
+  position: absolute;
+  inset: 0;
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.hp-meter .heart.full::before,
+.hp-meter .heart.half::after {
+  color: #ff5570;
+}
+
+.hp-meter .heart.full::before {
+  text-shadow: 0 0 7px rgba(255, 85, 112, 0.42);
+}
+
+.hp-meter .heart.half::after {
+  content: "♥";
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  overflow: hidden;
+  text-shadow: 0 0 7px rgba(255, 85, 112, 0.42);
 }
 
 .meter span {
@@ -247,9 +300,31 @@ button {
   right: 10px;
   display: grid;
   gap: 6px;
-  height: 64px;
+  height: auto;
   grid-template-rows: 1fr 1fr;
   pointer-events: none;
+}
+
+.minimap {
+  position: absolute;
+  top: max(82px, calc(env(safe-area-inset-top) + 82px));
+  right: 10px;
+  z-index: 4;
+  width: 120px;
+  height: 88px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(7, 11, 20, 0.72);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.minimap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
 }
 
 .resource-pill {
@@ -292,6 +367,11 @@ button {
   bottom: max(12px, env(safe-area-inset-bottom));
   width: auto;
   gap: 0;
+}
+
+.settings-hud {
+  left: auto;
+  right: 12px;
 }
 
 .hud > div {
@@ -401,9 +481,9 @@ button {
 .toast {
   position: absolute;
   left: 50%;
-  top: max(124px, calc(env(safe-area-inset-top) + 116px));
-  z-index: 8;
-  width: min(330px, calc(100% - 28px));
+  top: max(50%, calc(env(safe-area-inset-top) + 168px));
+  z-index: 40;
+  width: min(292px, calc(100% - 40px));
   padding: 11px 14px;
   border: 1px solid rgba(78, 226, 160, 0.58);
   border-radius: 8px;
@@ -416,7 +496,7 @@ button {
   line-height: 1.35;
   text-align: center;
   opacity: 0;
-  transform: translate(-50%, -14px) scale(0.96);
+  transform: translate(-50%, -50%) scale(0.96);
   transition:
     opacity 220ms ease,
     transform 220ms cubic-bezier(0.2, 0.8, 0.18, 1);
@@ -425,7 +505,7 @@ button {
 
 .toast.show {
   opacity: 1;
-  transform: translate(-50%, 0) scale(1);
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .joystick {
@@ -501,13 +581,18 @@ button {
 }
 
 .modal-panel {
+  position: relative;
   width: min(100%, 390px);
+  max-height: calc(100svh - 28px);
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(12, 17, 32, 0.94);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
   animation: modalPanelIn 360ms cubic-bezier(0.2, 0.8, 0.18, 1) both;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .upgrade-modal .modal-panel {
@@ -524,6 +609,47 @@ button {
   border-color: rgba(255, 209, 102, 0.48);
   background:
     linear-gradient(180deg, rgba(48, 37, 14, 0.96), rgba(12, 17, 32, 0.96));
+}
+
+.shop-modal .modal-kicker,
+.shop-modal .modal-copy,
+.shop-modal h2 {
+  text-align: center;
+}
+
+.shop-modal.blacksmith-choice-modal .modal-panel {
+  width: min(100%, 340px);
+  animation: forgePanelIn 420ms cubic-bezier(0.18, 0.92, 0.18, 1.05) both;
+}
+
+.shop-modal.blacksmith-confirm-modal .modal-panel {
+  width: min(100%, 310px);
+  min-height: 0;
+  max-height: none;
+  padding: 14px;
+}
+
+.shop-modal.blacksmith-confirm-modal .modal-copy {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.shop-modal.blacksmith-confirm-modal .continue-button {
+  width: min(210px, 100%);
+  align-self: center;
+}
+
+.shop-modal.blacksmith-choice-modal .modal-panel::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 209, 102, 0.28), transparent 36%),
+    radial-gradient(circle at 18% 84%, rgba(83, 216, 251, 0.18), transparent 28%);
+  opacity: 0;
+  pointer-events: none;
+  animation: forgeGlimmer 720ms ease-out 80ms both;
 }
 
 .buy-modal,
@@ -543,6 +669,17 @@ button {
 
 .settings-panel {
   width: min(100%, 390px);
+}
+
+.settings-modal .settings-panel {
+  text-align: center;
+  align-items: center;
+}
+
+.settings-modal .modal-kicker,
+.settings-modal h2 {
+  width: 100%;
+  text-align: center;
 }
 
 .confirm-panel .hero-avatar {
@@ -659,26 +796,37 @@ button {
   background: var(--gold);
 }
 
+.bottom-refresh {
+  width: min(148px, 54%);
+  margin-top: 12px;
+  align-self: center;
+  flex: 0 0 auto;
+}
+
 .shop-toolbar {
   margin: -4px 0 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
+  text-align: center;
 }
 
 .reward-toolbar {
   margin: -4px 0 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
+  text-align: center;
 }
 
 .reward-toolbar span {
   color: #9bf6ff;
   font-size: 12px;
   font-weight: 900;
+  width: 100%;
+  text-align: center;
 }
 
 .shop-toolbar span {
@@ -695,6 +843,28 @@ button {
   font-weight: 900;
   line-height: 1.35;
   text-align: center;
+}
+
+.shop-modal.next-floor-modal .modal-panel {
+  width: min(100%, 284px);
+  padding: 12px;
+}
+
+.shop-modal.next-floor-modal .shop-toolbar,
+.shop-modal.next-floor-modal .shop-message,
+.shop-modal.next-floor-modal .choice-grid {
+  display: none;
+}
+
+.shop-modal.next-floor-modal .modal-copy {
+  min-height: 0;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.shop-modal.next-floor-modal .continue-button {
+  width: min(188px, 100%);
+  align-self: center;
 }
 
 .hero-modal .modal-panel {
@@ -736,6 +906,7 @@ button {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+  overflow: auto;
 }
 
 .choice-grid.card-fan {
@@ -745,6 +916,18 @@ button {
   justify-content: center;
   gap: 0;
   perspective: 900px;
+}
+
+.choice-grid.single-result {
+  min-height: 158px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.choice-grid.single-result .choice-card {
+  min-height: 132px;
+  text-align: center;
 }
 
 .choice-card {
@@ -942,9 +1125,9 @@ button {
 
 .card-fan .choice-card {
   width: 31%;
-  min-height: 164px;
-  margin: 0 -2px;
-  padding: 12px 10px;
+  min-height: 132px;
+  margin: 0 1px;
+  padding: 10px 8px;
   opacity: 0;
   transform: translateY(42px) rotate(var(--r, 0deg)) scale(0.9);
   animation: dealCard 520ms cubic-bezier(0.2, 0.8, 0.18, 1) forwards;
@@ -953,12 +1136,35 @@ button {
 }
 
 .card-fan .choice-card strong {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .card-fan .choice-card span {
-  min-height: 52px;
-  font-size: 12px;
+  min-height: 34px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.blacksmith-choice-modal .choice-grid.card-fan {
+  min-height: 156px;
+}
+
+.blacksmith-choice-modal .shop-card .shop-icon {
+  width: 38px;
+  height: 38px;
+  margin: 0 auto 5px;
+  padding: 7px;
+}
+
+.blacksmith-choice-modal .shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.blacksmith-choice-modal .shop-card em {
+  margin-top: 4px;
 }
 
 .choice-card.burning {
@@ -1049,6 +1255,9 @@ button {
 
 .tutorial-modal {
   z-index: 9;
+  align-items: center;
+  padding-top: max(132px, env(safe-area-inset-top));
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 .tutorial-panel {
@@ -1138,6 +1347,7 @@ button {
 }
 
 .settings-menu {
+  width: 100%;
   display: grid;
   gap: 10px;
 }
@@ -1160,8 +1370,10 @@ button {
 }
 
 .settings-content {
+  width: 100%;
   display: grid;
   gap: 10px;
+  justify-items: center;
 }
 
 .settings-back {
@@ -1282,6 +1494,38 @@ button {
   }
 }
 
+@keyframes forgePanelIn {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.94);
+    filter: brightness(1.35) saturate(0.6);
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+    filter: brightness(1.18) saturate(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: none;
+  }
+}
+
+@keyframes forgeGlimmer {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  34% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
 @keyframes cardBurn {
   0% {
     opacity: 1;
@@ -1397,6 +1641,9 @@ button {
 
 .cue-modal {
   background: rgba(4, 6, 12, 0.72);
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
 }
 
 .cue-panel {
@@ -1484,7 +1731,14 @@ button {
 
   .hud-currency {
     right: 8px;
-    height: 62px;
+    height: auto;
+  }
+
+  .minimap {
+    top: max(90px, calc(env(safe-area-inset-top) + 90px));
+    right: 8px;
+    width: 104px;
+    height: 78px;
   }
 
   .resource-pill {
@@ -1505,7 +1759,7 @@ button {
 
   .card-fan .choice-card {
     width: 32%;
-    min-height: 156px;
+    min-height: 132px;
     padding: 10px 8px;
   }
 

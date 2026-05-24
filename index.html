@@ -1,29 +1,25 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0c1120" />
-    <title>Gamefight 割草肉鸽 Demo</title>
+    <title>无尽裂隙</title>
     <link rel="icon" type="image/png" href="assets/sprites/hero_avatar.png" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="shell">
-      <section class="game-wrap" aria-label="Gamefight 割草肉鸽 Demo">
+      <section class="game-wrap" aria-label="无尽裂隙">
         <canvas id="game" aria-label="游戏画布"></canvas>
 
         <div class="hud-player" aria-label="人物状态">
           <button id="hud-avatar" class="avatar-frame" type="button" aria-label="查看人物属性">?</button>
           <div class="player-bars">
             <strong id="hero-name">未选择</strong>
-            <div class="meter hp-meter" aria-label="生命值">
+            <div class="meter hp-meter" aria-label="爱心">
               <i id="hp-fill"></i>
               <span id="hp">100/100</span>
-            </div>
-            <div class="meter xp-meter" aria-label="经验值">
-              <i id="xp-fill"></i>
-              <span id="xp">0/52</span>
             </div>
           </div>
         </div>
@@ -35,27 +31,25 @@
         </div>
 
         <div class="hud-currency" aria-label="资源">
-          <div class="resource-pill">
+          <div class="resource-pill" aria-label="金币">
             <span class="hud-icon coin-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M12 3c5 0 9 2 9 4.5S17 12 12 12 3 10 3 7.5 7 3 12 3Zm-9 8c1.7 1.8 5 3 9 3s7.3-1.2 9-3v2.5C21 16 17 18 12 18s-9-2-9-4.5V11Zm0 6c1.7 1.8 5 3 9 3s7.3-1.2 9-3v1.5C21 21 17 23 12 23s-9-2-9-4.5V17Z" /></svg>
             </span>
             <strong id="coins">0</strong>
           </div>
-          <div class="resource-pill">
+          <div class="resource-pill" aria-label="钻石">
             <span class="hud-icon gem-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M7 3h10l5 6-10 12L2 9l5-6Zm1.1 2L5 8h4l1.2-3H8.1Zm5.7 0L15 8h4l-3.1-3h-2.1ZM11 5 9.8 8h4.4L13 5h-2Zm-5.5 5 4.6 5.5L8.9 10H5.5Zm5.5 0 1 6.7 1-6.7h-2Zm4.1 0-1.2 5.5 4.6-5.5h-3.4Z" /></svg>
+              <svg viewBox="0 0 24 24"><path d="m12 22-9-11 4-7h10l4 7-9 11Zm-5.5-10 4.1 5.1L8.8 12H6.5Zm4.6 0 .9 4.7.9-4.7h-1.8Zm4.1 0-1.8 5.1 4.1-5.1h-2.3ZM6.7 9h2.2l1.1-2H7.9L6.7 9Zm5.2 0h.2l1.1-2h-2.4l1.1 2Zm3.2 0h2.2l-1.2-2H14l1.1 2Z" /></svg>
             </span>
             <strong id="gems">0</strong>
           </div>
         </div>
 
-        <div class="hud bottom">
-          <div class="stat build-stat">
-            <span class="hud-icon build-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M13 2 4 13h7l-1 9 10-13h-7l1-7Z" /></svg>
-            </span>
-            <strong id="build">未选择 · 请选择初始武器</strong>
-          </div>
+        <div id="minimap" class="minimap" aria-label="小地图">
+          <canvas id="minimap-canvas" width="120" height="88" aria-hidden="true"></canvas>
+        </div>
+
+        <div class="hud bottom settings-hud">
           <button id="pause" type="button" aria-label="打开设置">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 3a8 8 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5A8.3 8.3 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5l.4 3h4l.4-3a8 8 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" /></svg>
           </button>
@@ -68,14 +62,14 @@
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
         <pre id="debug" class="debug" aria-label="实时调试监测"></pre>
 
-        <div id="level-up" class="modal upgrade-modal hidden" aria-label="战斗中升级奖励">
+        <div id="level-up" class="modal upgrade-modal hidden" aria-label="裂隙祝福">
           <div class="modal-panel">
-            <h2>人物变强了</h2>
+            <h2>裂隙祝福</h2>
             <div class="reward-toolbar">
-              <span id="upgrade-note">经验升级只强化人物</span>
-              <button id="refresh-upgrades" type="button" class="small-button">刷新 10金</button>
+              <span id="upgrade-note">选择1项强化</span>
             </div>
             <div id="upgrade-items" class="choice-grid"></div>
+            <button id="refresh-upgrades" type="button" class="small-button bottom-refresh">刷新 100金</button>
           </div>
         </div>
 
@@ -86,11 +80,11 @@
             <p id="shop-copy" class="modal-copy">价格不算公道，但你可能没有更好的选择。</p>
             <div class="shop-toolbar">
               <span id="shop-gold">金币 0</span>
-              <button id="refresh-shop" type="button" class="small-button">刷新 12金</button>
             </div>
             <p id="shop-message" class="shop-message" role="status" aria-live="polite"></p>
             <div id="shop-items" class="choice-grid"></div>
             <button id="continue-run" type="button" class="continue-button">进入下一层</button>
+            <button id="refresh-shop" type="button" class="small-button bottom-refresh">刷新 100金</button>
           </div>
         </div>
 
@@ -127,7 +121,7 @@
             <div class="result-actions">
               <button id="retry-run" type="button" class="continue-button primary">再来一局</button>
               <button id="change-weapon" type="button" class="ghost-button">换把武器</button>
-              <button id="result-lobby" type="button" class="ghost-button">返回大厅</button>
+              <button id="result-lobby" type="button" class="ghost-button">返回主界面</button>
             </div>
           </div>
         </div>
@@ -156,27 +150,27 @@
 
         <div id="hero-select" class="modal hero-modal hidden" aria-label="初始武器选择">
           <div class="modal-panel hero-panel">
-            <span class="modal-kicker">一个主角 · 三种开局</span>
+            <span class="modal-kicker">初始武器</span>
             <h2>选择初始武器</h2>
-            <p class="modal-copy">开局只选武器。捡经验强人物，找铁匠强武器，打 Boss 拿神明祝福。</p>
+            <p class="modal-copy">选择武器进入裂隙。</p>
             <div class="hero-grid">
-              <button class="hero-card" type="button" data-weapon="knife" style="--card-color: #ffe66d">
-                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_knife.png')" aria-label="Knife">刀</span>
-                <strong>裂隙短刃</strong>
-                <em>近身赌命流</em>
-                <span>离怪越近，刀越狠。适合冲进怪群，把危险变成收割。</span>
+              <button class="hero-card" type="button" data-weapon="fist" style="--card-color: #4ee2a0">
+                <span class="hero-avatar" aria-label="拳套">拳</span>
+                <strong>拳套</strong>
+                <em>近身高频、连击、冲拳、爆发</em>
+                <span>基础连拳：对最近敌人进行快速拳击，造成小范围近战伤害。</span>
               </button>
-              <button class="hero-card" type="button" data-weapon="magicMissile" style="--card-color: #bdb2ff">
-                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_magicMissile.png')" aria-label="秘银飞弹">弹</span>
-                <strong>秘银飞弹</strong>
-                <em>奥术弹幕流</em>
-                <span>不用瞄准，飞弹会自己找到猎物。活得越久，敌人越没地方躲。</span>
+              <button class="hero-card" type="button" data-weapon="knife" style="--card-color: #4ee2a0">
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_knife.png')" aria-label="太刀">刀</span>
+                <strong>太刀</strong>
+                <em>中近距离范围攻击、连段、突进</em>
+                <span>范围挥砍：对前方进行一次扇形近战攻击。</span>
               </button>
-              <button class="hero-card" type="button" data-weapon="dart" style="--card-color: #7ae582">
-                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_dart.png')" aria-label="Dart">镖</span>
-                <strong>回旋飞镖</strong>
-                <em>拉扯收割流</em>
-                <span>真正的伤害发生在返回那一刻。边跑边布置死亡路线。</span>
+              <button class="hero-card" type="button" data-weapon="magicMissile" style="--card-color: #4ee2a0">
+                <span class="hero-avatar sprite-avatar" style="background-image: url('assets/sprites/weapon_magicMissile.png')" aria-label="法杖">杖</span>
+                <strong>法杖</strong>
+                <em>远程法术、分裂弹、范围控场</em>
+                <span>魔法弹：向最近敌人发射魔法弹，命中后造成法术伤害。</span>
               </button>
             </div>
           </div>
@@ -213,7 +207,7 @@
             <div id="settings-menu" class="settings-menu">
               <button id="resume-run" type="button">继续游戏</button>
               <button id="restart-run" type="button">重新开始本局</button>
-              <button id="return-lobby" type="button">返回大厅</button>
+              <button id="return-lobby" type="button">返回主界面</button>
               <button id="open-help" type="button">查看说明</button>
               <button id="open-audio" type="button">游戏设置</button>
             </div>
@@ -222,9 +216,9 @@
         </div>
 
         <div id="overlay" class="overlay">
-          <h1>Gamefight</h1>
+          <h1>无尽裂隙</h1>
           <p id="profile-summary">
-            捡经验强人物，找铁匠强武器，打 Boss 拿神明祝福。第 9 层是普通局结算点。
+            战斗层开始前选择裂隙祝福，在第 3 层面对沉默神龛，第 8 层寻找铁匠附魔，第 10 层击败阶段 Boss 夺取武器回声。
           </p>
           <div class="overlay-actions">
             <button id="start" type="button">开始冒险</button>
@@ -233,21 +227,22 @@
       </section>
 
       <aside class="notes" aria-label="玩法说明">
-        <h2>裂隙里的短局肉鸽</h2>
+        <h2>无尽裂隙</h2>
         <p>
-          一个主角，三种初始武器。经验升级只强化人物，铁匠只改武器，Boss 圣遗物才给神明祝福。
-          神龛是赌命交易，金币用来改命，不会卡住基础成长。
+          每 10 层构成一个循环：裂隙祝福塑造本轮构筑，神龛与铁匠改变节奏，Boss 武器回声会升阶当前武器或解锁新武器。
         </p>
         <ul>
-          <li>快速开始会使用上一次选择的初始武器。</li>
-          <li>敌人会掉落经验晶体，必须靠近拾取才会升级。</li>
-          <li>第 5 层清怪后寻找神龛，第 10 层寻找铁匠。</li>
-          <li>第 9 层 Boss 会掉落圣遗物，拾取后选择神明祝福。</li>
+          <li>新玩家默认只能选择拳套、太刀、法杖。</li>
+          <li>战斗层开始前获得 1 项裂隙祝福，可花金币刷新。</li>
+          <li>第 10 层循环 Boss 只给出 1 个武器回声结果，可花金币刷新。</li>
+          <li>飞镖和绣花针解锁后，会加入大厅武器选择栏。</li>
         </ul>
       </aside>
     </main>
 
-    <script defer src="./src/data/gameData.js?v=1"></script>
-    <script defer src="./src/game.js?v=27"></script>
+    <script defer src="./src/data/gameData.js?v=3"></script>
+    <script defer src="./src/game.js?v=31"></script>
   </body>
 </html>
+
+

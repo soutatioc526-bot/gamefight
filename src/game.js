@@ -1,4 +1,4 @@
-const canvas = document.querySelector("#game");
+﻿const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
 
 const ui = {
@@ -8,11 +8,10 @@ const ui = {
   heroName: document.querySelector("#hero-name"),
   hudAvatar: document.querySelector("#hud-avatar"),
   hp: document.querySelector("#hp"),
-  xp: document.querySelector("#xp"),
   hpFill: document.querySelector("#hp-fill"),
-  xpFill: document.querySelector("#xp-fill"),
   coins: document.querySelector("#coins"),
   gems: document.querySelector("#gems"),
+  minimapCanvas: document.querySelector("#minimap-canvas"),
   build: document.querySelector("#build"),
   pause: document.querySelector("#pause"),
   overlay: document.querySelector("#overlay"),
@@ -111,7 +110,7 @@ const COLORS = {
   hp: "#4ee2a0",
   danger: "#ff5570",
   gold: "#ffd166",
-  xp: "#53d8fb",
+  echo: "#53d8fb",
   warrior: "#ffe66d",
   mage: "#bdb2ff",
   archer: "#7ae582",
@@ -122,12 +121,19 @@ const COLORS = {
   playerCloth: "#4ee2a0",
 };
 
+const HEART_HP = 20;
+const HIT_HEART_DAMAGE = HEART_HP / 2;
+
 const RARITIES = {
   common: { label: "普通", color: "#4ee2a0", weight: 62 },
   elite: { label: "精英", color: "#53d8fb", weight: 25 },
   epic: { label: "史诗", color: "#bdb2ff", weight: 10 },
   legendary: { label: "传说", color: "#ffd166", weight: 3 },
 };
+
+function rarityColor(rarity = "common") {
+  return RARITIES[rarity]?.color || RARITIES.common.color;
+}
 
 const AUDIO_FILES = {
   tap: "assets/audio/tap.wav",
@@ -251,7 +257,6 @@ class Sfx {
       mage: 0.78,
       archer: 0.76,
       coin: 0.64,
-      xp: 0.56,
       shop: 0.68,
       shopOpen: 0.78,
       boss: 0.82,
@@ -347,7 +352,6 @@ class Sfx {
       mage: 0.15,
       archer: 0.13,
       coin: 0.08,
-      xp: 0.06,
       deal: 0.25,
       burn: 0.22,
       absorb: 0.32,
@@ -376,7 +380,6 @@ class Sfx {
     if (name === "mage") this.mageBolt(now);
     if (name === "archer") this.arrowShot(now);
     if (name === "coin") this.chime(now, [1046, 1568], 0.055, 0.04);
-    if (name === "xp") this.chime(now, [880, 1320], 0.035, 0.035);
     if (name === "deal") this.chime(now, [392, 494, 587], 0.045, 0.045);
     if (name === "burn") this.burn(now);
     if (name === "absorb") this.absorb(now);
@@ -725,14 +728,24 @@ function rgba(hex, alpha) {
   return `rgba(${(value >> 16) & 255},${(value >> 8) & 255},${value & 255},${alpha})`;
 }
 
-const ROGUE_STORAGE_KEY = "gamefight-rogue-profile-v1";
-const ROGUE_TUTORIAL_KEY = "gamefight-rogue-seen-tutorial";
+const ROGUE_STORAGE_KEY = "endless-rift-profile-v1";
+const ROGUE_TUTORIAL_KEY = "endless-rift-seen-tutorial";
 const ROGUE_SPRITES = {
   avatar: "assets/sprites/hero_avatar.png",
   hero: {
     src: "assets/sprites/hero_spritesheet.png",
     frameWidth: 128,
     frameHeight: 128,
+    directions: {
+      idle_front: { src: "assets/sprites/hero_idle_4dir.png", row: 0 },
+      idle_right: { src: "assets/sprites/hero_idle_4dir.png", row: 1 },
+      idle_back: { src: "assets/sprites/hero_idle_4dir.png", row: 2 },
+      idle_left: { src: "assets/sprites/hero_idle_4dir.png", row: 3 },
+      attack_front: { src: "assets/sprites/hero_attack_4dir.png", row: 0 },
+      attack_right: { src: "assets/sprites/hero_attack_4dir.png", row: 1 },
+      attack_back: { src: "assets/sprites/hero_attack_4dir.png", row: 2 },
+      attack_left: { src: "assets/sprites/hero_attack_4dir.png", row: 3 },
+    },
     animations: {
       idle: { row: 0, frames: 6, fps: 7 },
       move: { row: 1, frames: 6, fps: 10 },
@@ -743,43 +756,47 @@ const ROGUE_SPRITES = {
     },
   },
   effects: {
-    slash: { src: "assets/sprites/effect_knife_slash.png", frameWidth: 128, frameHeight: 128, frames: 6, fps: 18 },
-    missile: { src: "assets/sprites/effect_magic_missile.png", frameWidth: 128, frameHeight: 128, frames: 7, fps: 20 },
+    slash: { src: "assets/sprites/effect_knife_attack_right.png", frameWidth: 512, frameHeight: 512, frames: 8, fps: 22 },
+    missile: { src: "assets/sprites/effect_magic_missile_sheet.png", frameWidth: 256, frameHeight: 256, frames: 7, fps: 24 },
     dart: { src: "assets/sprites/effect_dart_trail.png", frameWidth: 128, frameHeight: 128, frames: 7, fps: 20 },
+    needle: { src: "assets/sprites/effect_needle_attack_right.png", frameWidth: 512, frameHeight: 512, frames: 8, fps: 24 },
   },
 };
 
 const ROGUE_MAPS = [
-  { id: "map01", label: "1-5层", src: "assets/maps/map_01_05.png" },
-  { id: "map02", label: "6-10层", src: "assets/maps/map_06_10.png" },
-  { id: "map03", label: "11-15层", src: "assets/maps/map_11_15.png" },
-  { id: "map04", label: "16-20层", src: "assets/maps/map_16_20.png" },
+  { id: "map01", label: "1-10层", src: "assets/maps/map_01_05.png" },
+  { id: "map02", label: "11-20层", src: "assets/maps/map_06_10.png" },
+  { id: "map03", label: "21-30层", src: "assets/maps/map_11_15.png" },
+  { id: "map04", label: "31-40层", src: "assets/maps/map_16_20.png" },
 ];
+
+const GAME_DATA = window.GAMEFIGHT_DATA || {};
+const DATA_WEAPON_CONFIGS = GAME_DATA.weaponConfigs || {};
 
 const ROGUE_WEAPONS = {
   knife: {
     id: "knife",
-    name: "裂隙短刃",
-    shortName: "短刃",
+    name: "太刀",
+    shortName: "太刀",
     role: "近身赌命流",
     color: COLORS.warrior,
     icon: "刀",
-    description: "离怪越近，刀越狠。适合冲进怪群，把危险变成收割。",
-    details: "一把从裂隙里拔出的短刃。\n它不锋利，它只是很饿。\n\n攻击方式：自动朝最近敌人挥出短弧刀光。",
+    description: "中近距离范围攻击，攻速较低，但拥有稳定清怪、连段和突进成长。",
+    details: "太刀不是旧短刃。\n它的节奏更慢，但范围更稳。\n\n攻击方式：自动朝最近敌人挥出扇形刀光。",
     damage: 24,
-    cooldown: 0.62,
+    cooldown: 0.72,
     range: 58,
     level: 1,
   },
   magicMissile: {
     id: "magicMissile",
-    name: "秘银飞弹",
-    shortName: "飞弹",
+    name: "法杖",
+    shortName: "法杖",
     role: "奥术弹幕流",
     color: COLORS.mage,
-    icon: "弹",
-    description: "不用瞄准，飞弹会自己找到猎物。活得越久，屏幕上的敌人越没有地方躲。",
-    details: "一枚会记仇的魔法飞弹。\n只要敌人还在，它就不会停下。\n\n攻击方式：自动锁定并发射追踪飞弹。",
+    icon: "杖",
+    description: "远程法术武器，依靠魔法弹、分裂弹、魔法阵和贯穿光束控场。",
+    details: "法杖会自动锁定敌人。\n前期安全稳定，后期依靠魔阵和光束清场。\n\n攻击方式：自动锁定并发射魔法弹。",
     damage: 34,
     cooldown: 0.86,
     range: 230,
@@ -802,27 +819,26 @@ const ROGUE_WEAPONS = {
   },
 };
 
-const ROGUE_BLESSINGS = {
-  wind: { id: "wind", name: "疾风祝福", type: "祝福", rarity: "common", color: COLORS.xp, text: "攻击速度提升，飞镖返回速度提升。" },
-  arcane: { id: "arcane", name: "奥术祝福", type: "祝福", rarity: "elite", color: COLORS.mage, text: "魔法飞弹命中后有概率复制一枚小飞弹。" },
-  blood: { id: "blood", name: "鲜血祝福", type: "祝福", rarity: "elite", color: COLORS.danger, text: "刀命中敌人时附加流血，流血敌人死亡时爆裂。" },
-  curse: { id: "curse", name: "诅咒祝福", type: "祝福", rarity: "elite", color: "#9b5cff", text: "飞镖命中敌人时添加诅咒标记，飞弹优先追踪标记敌人。" },
-};
+Object.assign(ROGUE_WEAPONS, DATA_WEAPON_CONFIGS);
 
 const ROGUE_SYNERGIES = {
-  arcaneBlades: { id: "arcaneBlades", name: "奥术剑阵", weapons: ["knife", "magicMissile"], rank: 2, text: "刀命中时有概率生成魔法飞弹，飞弹命中后缩短刀冷却。" },
-  returningDance: { id: "returningDance", name: "回旋刃舞", weapons: ["knife", "dart"], rank: 2, text: "飞镖返回路径穿过敌人时触发额外刀光。" },
-  runeDart: { id: "runeDart", name: "符文飞镖", weapons: ["magicMissile", "dart"], rank: 2, text: "飞镖标记敌人，飞弹优先追踪标记并造成小爆炸。" },
-  triBurst: { id: "triBurst", name: "三相爆发", weapons: ["knife", "magicMissile", "dart"], rank: 3, text: "3 秒内触发三种武器命中后生成三角法阵爆发。" },
+  arcaneBlades: { id: "arcaneBlades", name: "奥术剑阵", weapons: ["knife", "magicMissile"], rank: 2, text: "太刀命中时有概率生成魔法弹，法杖命中后缩短太刀冷却。" },
+  returningDance: { id: "returningDance", name: "回旋刃舞", weapons: ["knife", "dart"], rank: 2, text: "飞镖返回路径穿过敌人时触发额外太刀斩击。" },
+  runeDart: { id: "runeDart", name: "符文飞镖", weapons: ["magicMissile", "dart"], rank: 2, text: "飞镖标记敌人，法杖优先追踪标记并造成小爆炸。" },
+  triBurst: { id: "triBurst", name: "三相爆发", weapons: ["knife", "magicMissile", "dart"], rank: 3, text: "3 秒内触发太刀、法杖、飞镖命中后生成三角法阵爆发。" },
 };
 
-const GAME_DATA = window.GAMEFIGHT_DATA || {};
 const ECONOMY = GAME_DATA.economy || {};
 const PLAYER_UPGRADES = GAME_DATA.playerUpgrades || [];
 const WEAPON_ENCHANTMENTS = GAME_DATA.weaponEnchantments || { generic: [] };
-const DIVINE_BLESSINGS = GAME_DATA.divineBlessings || [];
 const SHRINE_EVENTS = GAME_DATA.shrineEvents || [];
 const FLOOR_PLAN = GAME_DATA.floorPlan || {};
+const BOSS_WEAPON_DROP = GAME_DATA.bossWeaponDrop || { floors: [10, 20], pool: ["fist", "knife", "magicMissile", "dart", "needle"] };
+const SINGLE_REFRESH_BASE = ECONOMY.singleRefreshBase || ECONOMY.levelRefreshBase || 100;
+const SINGLE_REFRESH_MULTIPLIER = ECONOMY.singleRefreshMultiplier || 2;
+const WEAPON_ORDER = (BOSS_WEAPON_DROP.pool || ["fist", "knife", "magicMissile", "dart", "needle"]).filter((id) => ROGUE_WEAPONS[id]);
+const DEFAULT_UNLOCKED_WEAPONS = WEAPON_ORDER.filter((id) => ROGUE_WEAPONS[id]?.isDefaultUnlocked);
+const ROMAN_LEVELS = ["", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ"];
 
 class RogueGame {
   constructor() {
@@ -846,6 +862,7 @@ Object.assign(RogueGame.prototype, {
     this.particlePool = new Pool(() => ({}));
     this.textPool = new Pool(() => ({}));
     this.effectPool = new Pool(() => ({}));
+    this.hitEffectPool = new Pool(() => ({}));
     this.last = 0;
     this.rafSeenAt = Date.now();
     this.fps = 60;
@@ -859,10 +876,12 @@ Object.assign(RogueGame.prototype, {
   readProfile() {
     const defaults = {
       lastStartingWeapon: null,
+      unlockedWeapons: DEFAULT_UNLOCKED_WEAPONS,
       unlockedAchievements: [],
       highestFloor: 1,
       clearedNormalMode: false,
       unlockedDeepChallenge: false,
+      clearedFirstTenthBoss: false,
       highestKills: 0,
       bestSynergy: "无",
       settings: { seenTutorial: false, sfxEnabled: true, vibrationEnabled: true },
@@ -872,6 +891,7 @@ Object.assign(RogueGame.prototype, {
       return {
         ...defaults,
         ...saved,
+        unlockedWeapons: Array.from(new Set([...(defaults.unlockedWeapons || []), ...((Array.isArray(saved.unlockedWeapons) ? saved.unlockedWeapons : []) || [])])).filter((id) => ROGUE_WEAPONS[id]),
         settings: { ...defaults.settings, ...(saved.settings || {}) },
         unlockedAchievements: Array.isArray(saved.unlockedAchievements) ? saved.unlockedAchievements : [],
       };
@@ -907,19 +927,20 @@ Object.assign(RogueGame.prototype, {
     this.releaseAll?.(this.active?.particles || [], this.particlePool);
     this.releaseAll?.(this.active?.texts || [], this.textPool);
     this.releaseAll?.(this.active?.effects || [], this.effectPool);
+    this.releaseAll?.(this.active?.hitEffects || [], this.hitEffectPool);
     this.mode = "title";
     this.resumeMode = "combat";
     this.pendingStartingWeapon = null;
     this.runEnded = false;
     this.floor = 1;
     this.level = 1;
-    this.xp = 0;
-    this.nextXp = 34;
     this.hp = 120;
     this.maxHp = 120;
     this.coins = 0;
     this.gems = 0;
     this.reviveCurrency = 0;
+    this.pendingFloorStart = null;
+    this.bossRewardPending = false;
     this.floorTime = 0;
     this.floorTimeLimit = 110;
     this.floorKills = 0;
@@ -931,23 +952,17 @@ Object.assign(RogueGame.prototype, {
     this.specialDefeated = true;
     this.pendingUpgrades = 0;
     this.currentUpgradeChoices = [];
-    this.upgradeRefreshPrice = 10;
-    this.upgradeRefreshed = false;
-    this.freeUpgradeRerolls = 0;
+    this.currentRefreshPrice = SINGLE_REFRESH_BASE;
+    this.currentRefreshContext = "";
     this.intermissionRefreshPrice = 12;
-    this.blacksmithRefreshIndex = 0;
     this.blacksmithLockedIndex = -1;
-    this.bossRewardRefreshed = false;
+    this.pendingEnchantChoice = null;
     this.shopOffers = [];
     this.shopSelected = null;
     this.shopMessageTimer = 0;
     this.safeEvent = null;
     this.pendingSafeNextFloor = null;
     this.pendingNextFloor = null;
-    this.awaitingBossRelic = false;
-    this.bossRelicFloor = 0;
-    this.pendingAfterDivine = null;
-    this.riftPulseTimer = 10;
     this.killBuffTimer = 0;
     this.killHasteStacks = 0;
     this.nextFloorModifiers = {};
@@ -955,6 +970,11 @@ Object.assign(RogueGame.prototype, {
     this.sayTimer = 0;
     this.hitStop = 0;
     this.shake = 0;
+    this.floorTransition = null;
+    this.bossIntro = null;
+    this.comboCount = 0;
+    this.comboTimer = 0;
+    this.comboTextCooldown = 0;
     this.joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, radius: 48, pointerId: null };
     this.player = {
       x: WORLD.width / 2,
@@ -975,6 +995,7 @@ Object.assign(RogueGame.prototype, {
       attackAnim: "idle",
       attackAnimTime: 0,
       faceX: 1,
+      faceY: 0,
       shield: 0,
     };
     this.playerUpgrades = [];
@@ -983,7 +1004,6 @@ Object.assign(RogueGame.prototype, {
       speedMult: 0,
       pickupRangeMult: 0,
       pickupSpeedMult: 0,
-      xpGainMult: 0,
       damageMult: 0,
       attackSpeedMult: 0,
       critChance: 0,
@@ -994,10 +1014,6 @@ Object.assign(RogueGame.prototype, {
       rareBias: 0,
     };
     this.weapons = [];
-    this.blessings = [];
-    this.divineBlessings = this.blessings;
-    this.items = [];
-    this.relics = this.items;
     this.synergies = [];
     this.startingWeapon = null;
     this.highestSynergy = "无";
@@ -1010,18 +1026,18 @@ Object.assign(RogueGame.prototype, {
       floorsReached: 1,
       completedNormal: false,
       enteredDeep: false,
-      rewardMultiplier: 1,
-      blessingsFound: 0,
+      rewardMultiplier: 1,      bossWeaponDrops: [],
     };
     this.camera = { x: 0, y: 0, scale: window.innerWidth <= 430 ? 0.78 : 0.84 };
-    this.active = { enemies: [], drops: [], particles: [], texts: [], effects: [] };
+    this.active = { enemies: [], drops: [], particles: [], texts: [], effects: [], hitEffects: [] };
     this.clearAllModals();
     ui.overlay.classList.remove("hidden");
-    ui.overlay.querySelector("h1").textContent = "Gamefight";
+    ui.overlay.querySelector("h1").textContent = "无尽裂隙";
     ui.start.textContent = "进入裂隙";
+    if (!this.profile.unlockedWeapons?.length) this.profile.unlockedWeapons = [...DEFAULT_UNLOCKED_WEAPONS];
     if (ui.profileSummary) {
-      const deep = this.profile.unlockedDeepChallenge ? "深层挑战已解锁" : "第 9 层 Boss 后解锁铁匠路线";
-      ui.profileSummary.textContent = `最高第 ${this.profile.highestFloor || 1} 层 · 最高击杀 ${this.profile.highestKills || 0} · ${deep}`;
+      const unlocked = this.unlockedWeaponIds?.().length || DEFAULT_UNLOCKED_WEAPONS.length;
+      ui.profileSummary.textContent = `最高第 ${this.profile.highestFloor || 1} 层 · 最高击杀 ${this.profile.highestKills || 0} · 已解锁武器 ${unlocked}/${WEAPON_ORDER.length}`;
     }
     this.updateUi();
     this.draw();
@@ -1031,6 +1047,42 @@ Object.assign(RogueGame.prototype, {
     [ui.shop, ui.levelUp, ui.heroSelect, ui.heroConfirm, ui.buyDialog, ui.tutorialDialog, ui.statsPanel, ui.settings, ui.stageSummary, ui.resultModal, ui.bossCue].forEach((layer) => {
       if (layer) this.clearLayer(layer);
     });
+  },
+
+  resetSingleRefresh(context = "") {
+    this.currentRefreshContext = context;
+    this.currentRefreshPrice = SINGLE_REFRESH_BASE;
+  },
+
+  spendSingleRefresh(label = "刷新") {
+    const price = this.currentRefreshPrice || SINGLE_REFRESH_BASE;
+    if (this.coins < price) {
+      const message = `金币不足，${label}需要 ${price} 金。`;
+      this.say(message);
+      this.showShopMessage?.(message);
+      this.sfx.play("fail");
+      return false;
+    }
+    this.coins -= price;
+    this.currentRefreshPrice = Math.floor(price * SINGLE_REFRESH_MULTIPLIER);
+    this.say(`${label}：-${price}`);
+    this.sfx.play("refresh");
+    this.updateUi();
+    return true;
+  },
+
+  beginFloorTransition(phase = "enter") {
+    this.floorTransition = {
+      phase,
+      time: 0,
+      duration: phase === "leave" ? 1.05 : 1.35,
+    };
+  },
+
+  resetCombo() {
+    this.comboCount = 0;
+    this.comboTimer = 0;
+    this.comboTextCooldown = 0;
   },
 
   resize() {
@@ -1101,7 +1153,7 @@ Object.assign(RogueGame.prototype, {
     ui.continueRun?.addEventListener("click", () => this.continueFromIntermission());
     ui.buyCancel?.addEventListener("click", () => this.closeBuyDialog(true));
     ui.buyConfirm?.addEventListener("click", () => this.confirmPurchase());
-    ui.stageSettle?.addEventListener("click", () => this.settleRun(this.floor >= 9 ? "普通局通关" : "暂时结算"));
+    ui.stageSettle?.addEventListener("click", () => this.settleRun(this.floor >= 10 ? "十层循环突破" : "暂时结算"));
     ui.stageContinue?.addEventListener("click", () => this.continueAfterStage());
     ui.retryRun?.addEventListener("click", () => this.retryRun());
     ui.changeWeapon?.addEventListener("click", () => this.changeStartingWeapon());
@@ -1128,9 +1180,7 @@ Object.assign(RogueGame.prototype, {
   },
 
   smartStart() {
-    const savedWeapon = this.profile.lastStartingWeapon;
-    if (savedWeapon && ROGUE_WEAPONS[savedWeapon]) this.startRun(savedWeapon, { skipTutorial: true });
-    else this.openWeaponSelect();
+    this.openWeaponSelect();
   },
 
   openWeaponSelect() {
@@ -1138,20 +1188,105 @@ Object.assign(RogueGame.prototype, {
     this.sfx.play("start");
     this.mode = "weaponSelect";
     ui.overlay.classList.add("hidden");
+    this.renderWeaponSelect();
     ui.heroSelect.classList.remove("hidden");
-    this.say("选择初始武器，10 秒内开打。");
+    this.say("选择初始武器。");
     this.updateUi();
+  },
+
+  renderWeaponSelect() {
+    const panel = ui.heroSelect?.querySelector(".hero-panel");
+    const title = panel?.querySelector("h2");
+    const copy = panel?.querySelector(".modal-copy");
+    const grid = ui.heroSelect?.querySelector(".hero-grid");
+    if (title) title.textContent = "选择初始武器";
+    if (copy) copy.textContent = "选择武器进入裂隙。";
+    if (!grid) return;
+    grid.innerHTML = "";
+    const unlocked = this.unlockedWeaponIds();
+    unlocked.forEach((weaponId) => {
+      const weapon = ROGUE_WEAPONS[weaponId];
+      if (!weapon) return;
+      const button = document.createElement("button");
+      button.className = "hero-card";
+      button.type = "button";
+      button.dataset.weapon = weapon.id;
+      button.style.setProperty("--card-color", rarityColor("common"));
+      const asset = weapon.asset || `assets/sprites/weapon_${weapon.id}.png`;
+      const avatarStyle = weapon.asset ? ` style="background-image: url('${asset}')"` : "";
+      const skill = this.weaponSkill(weapon, 1);
+      button.innerHTML = `
+        <span class="hero-avatar ${weapon.asset ? "sprite-avatar" : ""}"${avatarStyle} aria-label="${weapon.name}">${weapon.icon || weapon.shortName?.[0] || "武"}</span>
+        <strong>${weapon.name}</strong>
+        <em>${weapon.roleDescription || weapon.role || ""}</em>
+        <span>${skill?.skillName || "基础技能"}</span>
+      `;
+      button.addEventListener("click", () => this.selectStartingWeapon(weapon.id));
+      grid.appendChild(button);
+    });
+  },
+
+  unlockedWeaponIds() {
+    const saved = Array.isArray(this.profile.unlockedWeapons) ? this.profile.unlockedWeapons : [];
+    const unlocked = new Set([...DEFAULT_UNLOCKED_WEAPONS, ...saved]);
+    return WEAPON_ORDER.filter((id) => unlocked.has(id));
+  },
+
+  isWeaponUnlocked(weaponId) {
+    return this.unlockedWeaponIds().includes(weaponId);
+  },
+
+  weaponConfig(weaponOrId) {
+    const id = typeof weaponOrId === "string" ? weaponOrId : weaponOrId?.id;
+    return ROGUE_WEAPONS[id] || null;
+  },
+
+  weaponMaxLevel(weaponOrId) {
+    return this.weaponConfig(weaponOrId)?.maxLevel || 5;
+  },
+
+  weaponLevelLabel(level = 1) {
+    return ROMAN_LEVELS[clamp(Math.round(level), 1, ROMAN_LEVELS.length - 1)] || String(level);
+  },
+
+  weaponSkill(weaponOrId, level = 1) {
+    const weapon = this.weaponConfig(weaponOrId);
+    if (!weapon?.levelSkills?.length) return null;
+    const current = clamp(Math.round(level), 1, this.weaponMaxLevel(weapon));
+    return [...weapon.levelSkills].reverse().find((skill) => skill.level <= current) || weapon.levelSkills[0];
+  },
+
+  weaponSkillText(weaponOrId, level = 1) {
+    const weapon = this.weaponConfig(weaponOrId);
+    const skill = this.weaponSkill(weapon, level);
+    if (!weapon || !skill) return "";
+    return `${weapon.name}${this.weaponLevelLabel(level)} · ${skill.skillName}\n${skill.skillDescription}\n\n玩法说明：${skill.gameplayDescription}`;
+  },
+
+  showWeaponNotice(title, copy, button = "确认") {
+    this.currentRoom = { id: "weaponNotice", title, copy, button };
+    this.shopOffers = [];
+    this.mode = "weaponNotice";
+    this.renderIntermission();
+    ui.shop.classList.remove("hidden");
+    this.sfx.play("deal");
   },
 
   selectStartingWeapon(weaponId) {
     const weapon = ROGUE_WEAPONS[weaponId];
     if (!weapon) return;
+    if (!this.isWeaponUnlocked(weaponId)) {
+      this.showWeaponNotice("尚未解锁", "该武器需要在空间裂隙中击败 BOSS 后获得，解锁后才可在大厅中选择。", "确认");
+      return;
+    }
     this.pendingStartingWeapon = weaponId;
     ui.heroConfirmAvatar.textContent = "";
-    ui.heroConfirmAvatar.className = "hero-avatar sprite-avatar";
-    ui.heroConfirmAvatar.style.backgroundImage = `url(assets/sprites/weapon_${weaponId}.png)`;
-    ui.heroConfirmTitle.textContent = weapon.name;
-    ui.heroConfirmText.textContent = `${weapon.role}\n\n${weapon.description}\n\n${weapon.details}`;
+    ui.heroConfirmAvatar.className = weapon.asset ? "hero-avatar sprite-avatar" : "hero-avatar";
+    ui.heroConfirmAvatar.style.backgroundImage = weapon.asset ? `url(${weapon.asset})` : "";
+    ui.heroConfirmAvatar.textContent = weapon.asset ? "" : weapon.icon || "武";
+    ui.heroConfirmTitle.textContent = `${weapon.name} ${this.weaponLevelLabel(1)}`;
+    const skill = this.weaponSkill(weapon, 1);
+    ui.heroConfirmText.textContent = `${weapon.roleDescription || weapon.role}\n${skill?.skillName || "基础技能"}`;
     ui.heroConfirm.classList.remove("hidden");
     this.sfx.play("deal");
   },
@@ -1199,7 +1334,7 @@ Object.assign(RogueGame.prototype, {
     ui.tutorialKicker.classList.add("empty");
     ui.tutorialPortrait.textContent = "？";
     ui.tutorialSpeaker.textContent = "操作提示";
-    ui.tutorialLine.textContent = "拖动屏幕移动角色。蓝色经验晶体要靠近拾取；升级只强化人物，武器附魔和神明祝福另有来源。";
+    ui.tutorialLine.textContent = "移动，攻击，刷新祝福。第 10 层只有 Boss。";
     ui.tutorialNext.textContent = "开始战斗";
     ui.tutorialDialog.classList.add("tip-mode");
     ui.tutorialDialog.classList.remove("hidden");
@@ -1224,9 +1359,14 @@ Object.assign(RogueGame.prototype, {
     }
     this.sayTimer -= dt;
     this.shopMessageTimer -= dt;
+    if (this.floorTransition) {
+      this.floorTransition.time += dt;
+      if (this.floorTransition.time >= this.floorTransition.duration) this.floorTransition = null;
+    }
+    if (this.mode === "bossIntro") this.updateBossIntro(dt);
     if (this.mode === "combat" || this.mode === "safe") this.update(dt);
     else {
-      this.updateEffects(dt);
+      if (this.mode !== "cue") this.updateEffects(dt);
       this.player.flash = Math.max(0, this.player.flash - dt);
       this.player.absorb = Math.max(0, this.player.absorb - dt);
       if (this.sayTimer <= 0) ui.toast.classList.remove("show");
@@ -1255,10 +1395,13 @@ Object.assign(RogueGame.prototype, {
     const sources = {
       avatar: ROGUE_SPRITES.avatar,
       hero: ROGUE_SPRITES.hero.src,
-      slash: ROGUE_SPRITES.effects.slash.src,
-      missile: ROGUE_SPRITES.effects.missile.src,
-      dart: ROGUE_SPRITES.effects.dart.src,
     };
+    Object.entries(ROGUE_SPRITES.hero.directions || {}).forEach(([key, sprite]) => {
+      sources[key] = sprite.src;
+    });
+    Object.entries(ROGUE_SPRITES.effects).forEach(([key, effect]) => {
+      sources[key] = effect.src;
+    });
     ROGUE_MAPS.forEach((map, index) => {
       sources[`map${index}`] = map.src;
     });
@@ -1291,6 +1434,10 @@ Object.assign(RogueGame.prototype, {
     return this.mobileViewport ? 90 : 150;
   },
 
+  hitEffectCap() {
+    return this.mobileViewport ? 56 : 92;
+  },
+
   particleCap() {
     return this.mobileViewport ? 120 : 230;
   },
@@ -1301,6 +1448,34 @@ Object.assign(RogueGame.prototype, {
 });
 
 Object.assign(RogueGame.prototype, {
+  syncWeaponDerivedStats(weapon) {
+    const base = this.weaponConfig(weapon);
+    if (!base || !weapon) return null;
+    const maxLevel = this.weaponMaxLevel(base);
+    weapon.level = clamp(Math.round(weapon.level || 1), 1, maxLevel);
+    const skill = this.weaponSkill(base, weapon.level);
+    const levelBonus = Math.max(0, weapon.level - 1) * 0.12;
+    const echoBonus = (weapon.echoBoosts || 0) * 0.08;
+    weapon.name = base.name;
+    weapon.shortName = base.shortName || base.name;
+    weapon.color = base.color || COLORS.gold;
+    weapon.icon = base.icon || "武";
+    weapon.maxLevel = maxLevel;
+    weapon.currentSkill = skill;
+    weapon.effectType = skill?.effectType || weapon.effectType || base.id;
+    weapon.baseDamage = base.damage || weapon.baseDamage || 10;
+    weapon.baseCooldown = skill?.cooldown || base.cooldown || weapon.baseCooldown || 0.7;
+    weapon.baseRange = base.id === "magicMissile" ? Math.max(base.range || 0, skill?.range || 0) : skill?.range || base.range || weapon.baseRange || 70;
+    weapon.damage = Math.ceil(weapon.baseDamage * (1 + levelBonus + echoBonus)) + (weapon.bonusDamage || 0);
+    weapon.cooldown = Math.max(0.18, weapon.baseCooldown - (weapon.cooldownReduction || 0) - (weapon.echoBoosts || 0) * 0.01);
+    weapon.range = weapon.baseRange + (weapon.bonusRange || 0) + (weapon.echoBoosts || 0) * 3;
+    weapon.pierce = (base.pierce || 0) + (base.id === "dart" && weapon.level >= 2 ? 1 : 0) + (weapon.bonusPierce || 0);
+    weapon.shots = base.shots || 1;
+    weapon.speed = (base.id === "dart" ? 330 : 430) + (weapon.bonusSpeed || 0);
+    weapon.returnSpeed = (base.id === "dart" ? 420 : 0) + (weapon.bonusReturnSpeed || 0);
+    return skill;
+  },
+
   addWeapon(weaponId) {
     if (this.weapons.some((weapon) => weapon.id === weaponId)) {
       this.upgradeWeapon(weaponId, { level: 1 });
@@ -1308,38 +1483,60 @@ Object.assign(RogueGame.prototype, {
     }
     const base = ROGUE_WEAPONS[weaponId];
     if (!base) return;
-    this.weapons.push({
+    const weapon = {
       id: base.id,
       name: base.name,
       shortName: base.shortName,
       color: base.color,
+      icon: base.icon,
+      baseDamage: base.damage,
+      baseCooldown: base.cooldown,
+      baseRange: base.range,
+      basePierce: base.pierce || 0,
       damage: base.damage,
       cooldown: base.cooldown,
       timer: 0.25,
       range: base.range,
       pierce: base.pierce || 0,
-      level: base.level || 1,
+      level: 1,
+      maxLevel: base.maxLevel || 5,
       shots: 1,
       speed: weaponId === "dart" ? 330 : 430,
       returnSpeed: weaponId === "dart" ? 420 : 0,
+      bonusDamage: 0,
+      bonusRange: 0,
+      bonusPierce: 0,
+      bonusSpeed: 0,
+      bonusReturnSpeed: 0,
+      cooldownReduction: 0,
+      echoBoosts: 0,
       enchantments: [],
       attackCount: 0,
       killBuffTimer: 0,
-    });
+    };
+    this.syncWeaponDerivedStats(weapon);
+    this.weapons.push(weapon);
     this.recalculateSynergies();
     this.say(`获得武器：${base.name}`);
   },
 
   upgradeWeapon(weaponId, changes = {}) {
     const weapon = this.weapons.find((item) => item.id === weaponId);
-    if (!weapon) return;
-    weapon.level += changes.level || 0;
-    weapon.damage += changes.damage || Math.ceil(weapon.damage * 0.12);
-    weapon.range += changes.range || 0;
-    weapon.speed += changes.speed || 0;
-    weapon.returnSpeed += changes.returnSpeed || 0;
-    if (changes.cooldown) weapon.cooldown = Math.max(0.18, weapon.cooldown - changes.cooldown);
-    this.say(`${weapon.shortName} 强化。`);
+    if (!weapon) return { upgraded: false, capped: false, level: 0, skill: null };
+    const before = weapon.level || 1;
+    const maxLevel = this.weaponMaxLevel(weapon);
+    if (changes.level) weapon.level = clamp(before + changes.level, 1, maxLevel);
+    const upgraded = weapon.level > before;
+    if (changes.damage !== undefined) weapon.bonusDamage = (weapon.bonusDamage || 0) + changes.damage;
+    else if (!changes.level || upgraded) weapon.bonusDamage = (weapon.bonusDamage || 0) + Math.ceil(Math.max(1, weapon.damage) * 0.08);
+    if (changes.range) weapon.bonusRange = (weapon.bonusRange || 0) + changes.range;
+    if (changes.pierce) weapon.bonusPierce = (weapon.bonusPierce || 0) + changes.pierce;
+    if (changes.speed) weapon.bonusSpeed = (weapon.bonusSpeed || 0) + changes.speed;
+    if (changes.returnSpeed) weapon.bonusReturnSpeed = (weapon.bonusReturnSpeed || 0) + changes.returnSpeed;
+    if (changes.cooldown) weapon.cooldownReduction = (weapon.cooldownReduction || 0) + changes.cooldown;
+    const skill = this.syncWeaponDerivedStats(weapon);
+    this.say(upgraded ? `${weapon.shortName} ${this.weaponLevelLabel(weapon.level)}` : `${weapon.shortName} 手感提升`);
+    return { upgraded, capped: !upgraded && before >= maxLevel, level: weapon.level, skill };
   },
 
   recalculateSynergies() {
@@ -1357,23 +1554,37 @@ Object.assign(RogueGame.prototype, {
     }
   },
 
+  cycleStep(floor = this.floor) {
+    const length = FLOOR_PLAN.cycleLength || 10;
+    return ((Math.max(1, floor) - 1) % length) + 1;
+  },
+
+  cycleEventFor(floor = this.floor) {
+    return FLOOR_PLAN.cycleEvents?.[this.cycleStep(floor)] || null;
+  },
+
   safeFloorType(floor) {
-    const plan = FLOOR_PLAN[floor];
-    if (!plan?.type || plan.type === "boss") return null;
-    if (plan.type === "safe_random") return Math.random() < 0.5 ? "shrine" : "blacksmith";
+    const plan = this.cycleEventFor(floor);
+    if (!plan?.type || plan.type === "boss" || plan.type === "elite" || plan.type === "lieutenant") return null;
     if (plan.type === "safe_shrine") return "shrine";
     if (plan.type === "safe_blacksmith") return "blacksmith";
     return null;
   },
 
-  startFloor(floor) {
+  startFloor(floor, options = {}) {
     const safeType = this.safeFloorType(floor);
     if (safeType) {
-      this.startSafeEventFloor(floor, safeType, FLOOR_PLAN[floor]?.nextFloor || floor + 1);
+      this.startSafeEventFloor(floor, safeType, floor + 1);
+      return;
+    }
+    if (!options.skipPreUpgrade) {
+      this.openFloorUpgrade(floor);
       return;
     }
     this.mode = "combat";
     this.floor = floor;
+    this.resetCombo();
+    this.resetSingleRefresh("floor");
     this.pendingNextFloor = null;
     this.runStats.floorsReached = Math.max(this.runStats.floorsReached, floor);
     this.profile.highestFloor = Math.max(this.profile.highestFloor || 1, floor);
@@ -1381,37 +1592,40 @@ Object.assign(RogueGame.prototype, {
     this.floorTimeLimit = 90 + Math.min(60, floor * 5);
     this.floorKills = 0;
     this.floorSpawned = 0;
-    this.floorSpawnLimit = this.floorLimitFor(floor);
+    this.floorSpawnLimit = this.cycleStep(floor) === 10 ? 0 : this.floorLimitFor(floor);
     this.floorGoal = this.floorSpawnLimit + (this.specialForFloor(floor) ? 1 : 0);
     this.spawnTimer = floor === 1 ? 0.2 : 0.55;
     this.specialSpawned = false;
     this.specialDefeated = !this.specialForFloor(floor);
-    this.awaitingBossRelic = false;
+    this.bossRewardPending = false;
     this.safeEvent = null;
     this.currentFloorModifiers = this.nextFloorModifiers || {};
     this.nextFloorModifiers = {};
     this.player.x = WORLD.width / 2;
     this.player.y = WORLD.height / 2;
     if (this.upgradeStats.floorShield) this.player.shield = Math.max(this.player.shield, this.upgradeStats.floorShield);
-    this.applyFloorInterest();
     this.clearAllModals();
+    this.beginFloorTransition("enter");
+    const step = this.cycleStep(floor);
     const floorCopy = {
-      1: "第 1 层：杀怪，捡经验，别太贪。",
-      2: "第 2 层：怪更多了，你也该更强了。",
-      3: "第 3 层：清场节奏开始加速。",
-      4: "第 4 层：新的怪物行为出现。",
-      6: "第 6 层：神龛之后，压力会认真起来。",
-      7: "第 7 层：高密度割草层。",
-      8: "第 8 层：Boss 前最后一口气。",
-      9: "第 9 层：门槛守卫在等你。",
+      1: `第 ${floor} 层：新循环起步。`,
+      2: `第 ${floor} 层：裂隙祝福生效。`,
+      4: `第 ${floor} 层：神龛之后，压力开始抬高。`,
+      5: `第 ${floor} 层：精英怪会检验你的走位。`,
+      6: `第 ${floor} 层：怪群密度继续上升。`,
+      7: `第 ${floor} 层：为铁匠前的金币做准备。`,
+      9: `第 ${floor} 层：副首领会验证你的附魔。`,
+      10: `第 ${floor} 层：阶段 Boss 带着武器回声出现。`,
     };
-    this.say(this.specialForFloor(floor) ? floorCopy[floor] || `第 ${floor} 层：强敌正在靠近。` : floorCopy[floor] || `第 ${floor} 层：清理怪群。`);
+    this.say(this.specialForFloor(floor) ? floorCopy[step] || `第 ${floor} 层：强敌正在靠近。` : floorCopy[step] || `第 ${floor} 层：清理怪群。`);
     this.updateUi();
   },
 
   startSafeEventFloor(floor, type, nextFloor) {
     this.mode = "safe";
     this.floor = floor;
+    this.resetCombo();
+    this.resetSingleRefresh("safe");
     this.runStats.floorsReached = Math.max(this.runStats.floorsReached, floor);
     this.profile.highestFloor = Math.max(this.profile.highestFloor || 1, floor);
     if (floor >= 10) this.runStats.enteredDeep = true;
@@ -1424,10 +1638,13 @@ Object.assign(RogueGame.prototype, {
     this.floorGoal = 0;
     this.specialSpawned = false;
     this.specialDefeated = true;
-    this.awaitingBossRelic = false;
+    this.bossRewardPending = false;
+    this.currentFloorModifiers = this.nextFloorModifiers || {};
+    this.nextFloorModifiers = {};
     this.releaseAll(this.active.enemies, this.enemyPool);
     this.releaseAll(this.active.drops, this.dropPool);
     this.clearAllModals();
+    this.beginFloorTransition("enter");
     this.player.x = WORLD.minX + 86;
     this.player.y = WORLD.height / 2;
     this.safeEvent = {
@@ -1438,12 +1655,14 @@ Object.assign(RogueGame.prototype, {
       opened: false,
       completed: false,
     };
-    this.say(type === "shrine" ? "安全地图：去找那座沉默的神龛。" : "安全地图：铁匠在另一侧等你。");
+    if (this.upgradeStats.floorShield) this.player.shield = Math.max(this.player.shield, this.upgradeStats.floorShield);
+    this.say(type === "shrine" ? `第 ${floor} 层：沉默神龛等待裂隙交易。` : `第 ${floor} 层：流浪铁匠在另一侧等你。`);
     this.updateUi();
   },
 
   requestNextFloor(nextFloor, copy = "") {
     this.clearAllModals();
+    this.beginFloorTransition("leave");
     this.mode = "nextFloor";
     this.pendingNextFloor = nextFloor;
     this.currentRoom = {
@@ -1466,33 +1685,29 @@ Object.assign(RogueGame.prototype, {
   },
 
   specialForFloor(floor) {
+    const loop = Math.floor((Math.max(1, floor) - 1) / (FLOOR_PLAN.cycleLength || 10));
+    const pressure = Math.min(10, loop * 2);
     const map = {
-      3: { label: "小 Boss", cue: "某处出现了可怕的气息。", hp: 7, radius: 2.0, color: "#e9c46a", rank: "elite" },
-      6: { label: "副首领", cue: "某处空间似乎发生了颤动。", hp: 10, radius: 2.35, color: "#ff70a6", rank: "lieutenant" },
-      9: { label: "门槛守卫", cue: "它站在第 9 层的尽头，像是在问：你真的以为这局已经结束了吗？", hp: 13, radius: 2.75, color: "#ff3d5a", rank: "boss" },
-      12: { label: "变异 Boss", cue: "更深处的形体正在扭曲。", hp: 15, radius: 2.85, color: "#bdb2ff", rank: "boss" },
-      15: { label: "高压精英", cue: "空气变得尖锐起来。", hp: 15, radius: 2.5, color: "#9bf6ff", rank: "elite" },
-      18: { label: "深层守卫", cue: "深层守卫挡住了去路。", hp: 18, radius: 3.0, color: "#ffd166", rank: "lieutenant" },
-      20: { label: "最终 Boss", cue: "深层领主醒来了。", hp: 24, radius: 3.25, color: "#ff2f5f", rank: "boss" },
+      5: { label: "裂隙精英", cue: `第 ${floor} 层的精英怪正在靠近。`, hp: 9 + pressure, radius: 2.15, color: rarityColor("elite"), rank: "elite" },
+      9: { label: "副首领", cue: `第 ${floor} 层的副首领站在附魔刚成形的路口。`, hp: 13 + pressure, radius: 2.65, color: rarityColor("epic"), rank: "lieutenant" },
+      10: { label: "阶段 Boss", cue: `第 ${floor} 层的阶段 Boss 带着武器回声踏出裂隙。`, hp: 17 + pressure, radius: 3.05, color: rarityColor("legendary"), rank: "boss" },
     };
-    return map[floor] || null;
+    return map[this.cycleStep(floor)] || null;
   },
 
   updateUi() {
     ui.wave.textContent = this.mode === "safe" ? `第${this.floor}层 安全` : `第${this.floor}层`;
     ui.timer.textContent = this.mode === "safe" ? "SAFE" : formatTime(Math.max(0, this.floorTimeLimit - this.floorTime));
     ui.remaining.textContent = this.mode === "safe" ? (this.safeEvent?.completed ? "已完成" : "寻找事件") : `剩余${Math.max(0, this.floorGoal - this.floorKills)}`;
-    ui.heroName.textContent = `游隙者 Lv.${this.level}`;
+    ui.heroName.textContent = "游隙者";
     ui.hudAvatar.className = this.spriteReady("avatar") ? "avatar-frame rogue sprite-avatar" : "avatar-frame rogue";
     ui.hudAvatar.style.backgroundImage = this.spriteReady("avatar") ? `url(${ROGUE_SPRITES.avatar})` : "";
     ui.hudAvatar.textContent = this.spriteReady("avatar") ? "" : this.startingWeapon ? ROGUE_WEAPONS[this.startingWeapon]?.icon || "游" : "游";
-    ui.hp.textContent = `${Math.max(0, Math.round(this.hp))}/${this.maxHp}`;
-    ui.xp.textContent = `${Math.floor(this.xp)}/${this.nextXp}`;
+    this.renderHeartHud();
     ui.hpFill.style.width = `${clamp(this.hp / this.maxHp, 0, 1) * 100}%`;
-    ui.xpFill.style.width = `${clamp(this.xp / this.nextXp, 0, 1) * 100}%`;
     ui.coins.textContent = this.coins;
-    ui.gems.textContent = this.divineBlessings.length || 0;
-    ui.build.textContent = this.growthSummary();
+    if (ui.gems) ui.gems.textContent = this.reviveCurrency || this.gems || 0;
+    if (ui.build) ui.build.textContent = this.growthSummary();
     if (this.sayTimer <= 0) ui.toast.classList.remove("show");
     document.body.dataset.mode = this.mode;
     document.body.dataset.floor = String(this.floor);
@@ -1500,23 +1715,40 @@ Object.assign(RogueGame.prototype, {
     document.body.dataset.weapons = this.weapons.map((weapon) => weapon.id).join(",");
   },
 
+  renderHeartHud() {
+    if (!ui.hp) return;
+    const maxHearts = Math.max(1, Math.ceil(this.maxHp / HEART_HP));
+    const halfHearts = Math.max(0, Math.ceil(this.hp / HIT_HEART_DAMAGE));
+    ui.hp.className = "heart-row";
+    ui.hp.setAttribute("aria-label", `${Math.max(0, Math.ceil(this.hp / HIT_HEART_DAMAGE))}/${maxHearts * 2} 半颗爱心`);
+    ui.hp.innerHTML = "";
+    for (let i = 0; i < maxHearts; i += 1) {
+      const heart = document.createElement("span");
+      const remaining = halfHearts - i * 2;
+      heart.className = `heart ${remaining >= 2 ? "full" : remaining === 1 ? "half" : "empty"}`;
+      heart.setAttribute("aria-hidden", "true");
+      ui.hp.appendChild(heart);
+    }
+  },
+
   growthSummary() {
     const weapon = this.primaryWeapon();
-    const weaponText = weapon ? `${weapon.shortName} · 附魔 ${(weapon.enchantments || []).map((item) => item.name).join("/") || "无"}` : "未选择武器";
-    const upgradeText = this.playerUpgrades.length ? this.playerUpgrades.slice(-2).map((item) => item.name).join("/") : "人物未强化";
-    const divineText = this.divineBlessings.length ? this.divineBlessings.map((item) => item.name).join("/") : "祝福无";
-    return `人物 ${upgradeText} · ${weaponText} · 神明 ${divineText}`;
+    const skillName = weapon?.currentSkill?.skillName || this.weaponSkill(weapon, weapon?.level || 1)?.skillName;
+    const weaponText = weapon ? `${weapon.shortName}${this.weaponLevelLabel(weapon.level)} · ${skillName || "基础技能"} · 附魔 ${(weapon.enchantments || []).map((item) => item.name).join("/") || "无"}` : "未选择武器";
+    const upgradeText = this.playerUpgrades.length ? this.playerUpgrades.slice(-2).map((item) => item.name).join("/") : "祝福无";
+    return `祝福 ${upgradeText} · ${weaponText}`;
   },
 
   synergyHint() {
     const owned = new Set(this.weapons.map((weapon) => weapon.id));
-    if (owned.size !== 2 || owned.has("knife") + owned.has("magicMissile") + owned.has("dart") !== 2) return "";
-    const missing = ["knife", "magicMissile", "dart"].find((weapon) => !owned.has(weapon));
+    const triad = ROGUE_SYNERGIES.triBurst.weapons;
+    if (owned.size !== 2 || triad.filter((weapon) => owned.has(weapon)).length !== 2) return "";
+    const missing = triad.find((weapon) => !owned.has(weapon));
     return `再获得 ${ROGUE_WEAPONS[missing].shortName} 可解锁“三相爆发”`;
   },
 
   mapIndexForFloor(floor = this.floor) {
-    return clamp(Math.ceil(Math.max(1, floor) / 5) - 1, 0, ROGUE_MAPS.length - 1);
+    return clamp(Math.floor((Math.max(1, floor) - 1) / 10), 0, ROGUE_MAPS.length - 1);
   },
 
   updateEffects(dt) {
@@ -1524,6 +1756,15 @@ Object.assign(RogueGame.prototype, {
       const effect = this.active.effects[i];
       effect.life -= dt;
       if (effect.life <= 0) this.releaseActive(this.active.effects, i, this.effectPool);
+    }
+    for (let i = this.active.hitEffects.length - 1; i >= 0; i -= 1) {
+      const fx = this.active.hitEffects[i];
+      fx.x += (fx.vx || 0) * dt;
+      fx.y += (fx.vy || 0) * dt;
+      fx.vx *= Math.pow(0.04, dt);
+      fx.vy *= Math.pow(0.04, dt);
+      fx.life -= dt;
+      if (fx.life <= 0) this.releaseActive(this.active.hitEffects, i, this.hitEffectPool);
     }
     for (let i = this.active.particles.length - 1; i >= 0; i -= 1) {
       const p = this.active.particles[i];
@@ -1534,13 +1775,14 @@ Object.assign(RogueGame.prototype, {
     }
     for (let i = this.active.texts.length - 1; i >= 0; i -= 1) {
       const text = this.active.texts[i];
-      text.y -= 24 * dt;
+      text.x += (text.vx || 0) * dt;
+      text.y += (text.vy || -24) * dt;
       text.life -= dt;
       if (text.life <= 0) this.releaseActive(this.active.texts, i, this.textPool);
     }
   },
 
-  addEffect(type, x, y, radius, color, direction = 0, fromX = 0, fromY = 0) {
+  addEffect(type, x, y, radius, color, direction = 0, fromX = 0, fromY = 0, flags = {}) {
     if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
     const effect = this.effectPool.get();
     effect.active = true;
@@ -1552,9 +1794,55 @@ Object.assign(RogueGame.prototype, {
     effect.direction = direction;
     effect.fromX = fromX;
     effect.fromY = fromY;
-    effect.life = type === "triBurst" ? 0.5 : type === "absorb" || type === "ring" ? 0.62 : type === "missile" || type === "dart" || type === "slash" ? 0.3 : 0.42;
+    effect.friendlyAttack = Boolean(flags.friendlyAttack || ["slash", "missile", "dart", "needle"].includes(type));
+    effect.life = type === "triBurst" ? 0.5 : type === "absorb" || type === "ring" ? 0.62 : type === "missile" ? 0.46 : type === "dart" || type === "slash" || type === "needle" ? 0.3 : 0.42;
     effect.maxLife = effect.life;
     this.active.effects.push(effect);
+  },
+
+  spawnHitFx(kind, x, y, options = {}) {
+    if (this.active.hitEffects.length >= this.hitEffectCap()) this.releaseActive(this.active.hitEffects, 0, this.hitEffectPool);
+    const fx = this.hitEffectPool.get();
+    const life = options.life ?? (kind === "dust" ? 0.34 : 0.22);
+    Object.assign(fx, {
+      active: true,
+      kind,
+      x,
+      y,
+      vx: options.vx || 0,
+      vy: options.vy || 0,
+      radius: options.radius || 18,
+      angle: options.angle || 0,
+      color: options.color || "rgba(210,205,195,0.7)",
+      life,
+      maxLife: life,
+    });
+    this.active.hitEffects.push(fx);
+  },
+
+  addHitFeedback(enemy, color, source = "generic") {
+    const dx = enemy.x - this.player.x;
+    const dy = enemy.y - this.player.y;
+    const angle = Math.atan2(dy, dx);
+    const nx = Math.cos(angle);
+    const ny = Math.sin(angle);
+    const dustColor = source === "knife" ? "rgba(225,218,205,0.72)" : "rgba(188,178,210,0.5)";
+    this.spawnHitFx("burst", enemy.x - nx * enemy.radius * 0.15, enemy.y - ny * enemy.radius * 0.15, {
+      angle,
+      color,
+      radius: source === "knife" ? 24 : 18,
+      life: source === "knife" ? 0.24 : 0.18,
+    });
+    for (let i = 0; i < 2; i += 1) {
+      this.spawnHitFx("dust", enemy.x - nx * enemy.radius * 0.45 + random(-6, 6), enemy.y + enemy.radius * 0.35 + random(-5, 6), {
+        angle: angle + random(-0.45, 0.45),
+        color: dustColor,
+        vx: -nx * random(26, 58) + random(-16, 16),
+        vy: -Math.abs(ny) * random(8, 20) + random(-10, 8),
+        radius: random(7, source === "knife" ? 13 : 10),
+        life: random(0.24, 0.38),
+      });
+    }
   },
 
   releaseActive(list, index, pool) {
@@ -1576,22 +1864,29 @@ Object.assign(RogueGame.prototype, {
     ctx.translate(-this.camera.x, -this.camera.y);
     this.drawBackground();
     this.drawSafeEvent();
+    this.drawAttackRanges();
+    this.drawBossTelegraphs();
     this.drawDrops();
     this.drawEffects();
+    this.drawHitEffects();
     this.drawEnemies();
     this.drawPlayer();
     this.drawParticles();
     this.drawTexts();
     ctx.restore();
     this.drawOffscreenIndicators();
+    this.drawMinimap();
+    this.drawBossIntroOverlay();
+    this.drawFloorTransition();
   },
 
   updateCamera() {
     if (!this.camera || !this.player) return;
     const viewW = VIEW.width / this.camera.scale;
     const viewH = VIEW.height / this.camera.scale;
-    this.camera.x = clamp(this.player.x - viewW / 2, 0, WORLD.width - viewW);
-    this.camera.y = clamp(this.player.y - viewH / 2, 0, WORLD.height - viewH);
+    const focus = this.bossIntro?.boss || this.player;
+    this.camera.x = clamp(focus.x - viewW / 2, 0, WORLD.width - viewW);
+    this.camera.y = clamp(focus.y - viewH / 2, 0, WORLD.height - viewH);
   },
 
   drawBackground() {
@@ -1633,7 +1928,7 @@ Object.assign(RogueGame.prototype, {
     if (!this.safeEvent || this.safeEvent.completed) return;
     const event = this.safeEvent;
     const pulse = 1 + Math.sin(performance.now() / 260) * 0.06;
-    const color = event.type === "shrine" ? "#bdb2ff" : "#ff9f1c";
+    const color = event.type === "shrine" ? rarityColor("epic") : rarityColor("legendary");
     ctx.save();
     ctx.translate(event.x, event.y);
     ctx.fillStyle = "rgba(0,0,0,0.34)";
@@ -1666,8 +1961,200 @@ Object.assign(RogueGame.prototype, {
     ctx.fillStyle = COLORS.text;
     ctx.font = "900 11px ui-sans-serif, system-ui";
     ctx.textAlign = "center";
-    ctx.fillText(event.type === "shrine" ? "神龛" : "铁匠", 0, -44);
+    ctx.fillText(event.type === "shrine" ? "沉默" : "铁匠", 0, -44);
     ctx.restore();
+  },
+
+  drawBossTelegraphs() {
+    for (const enemy of this.active.enemies || []) {
+      if (enemy.rank !== "boss") continue;
+      ctx.save();
+      if (enemy.bossState === "dashWarn") {
+        ctx.translate(enemy.x, enemy.y);
+        ctx.rotate(enemy.bossAngle || 0);
+        ctx.fillStyle = "rgba(255,85,112,0.18)";
+        roundRect(ctx, 0, -18, 220, 36, 6);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,85,112,0.72)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      if (enemy.bossState === "quakeWarn") {
+        const pulse = 1 + Math.sin(performance.now() / 120) * 0.04;
+        ctx.fillStyle = "rgba(255,85,112,0.18)";
+        ctx.strokeStyle = "rgba(255,85,112,0.86)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, 118 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      if (enemy.bossState === "waveCharge" || enemy.bossState === "waveFire") {
+        const width = enemy.bossState === "waveFire" ? 118 : 104;
+        const length = 1280;
+        ctx.translate(enemy.x, enemy.y);
+        ctx.rotate(enemy.bossAngle || 0);
+        ctx.fillStyle = enemy.bossState === "waveFire" ? "rgba(83,216,251,0.22)" : "rgba(255,85,112,0.2)";
+        ctx.strokeStyle = enemy.bossState === "waveFire" ? "rgba(83,216,251,0.82)" : "rgba(255,85,112,0.82)";
+        ctx.lineWidth = 3;
+        roundRect(ctx, -8, -width / 2, length, width, 8);
+        ctx.fill();
+        ctx.stroke();
+      }
+      if (enemy.bossState === "lockAim") {
+        const target = enemy.bossLockTarget || this.player;
+        ctx.strokeStyle = "rgba(255,85,112,0.9)";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath();
+        ctx.moveTo(enemy.x, enemy.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(255,85,112,0.18)";
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.68)";
+        ctx.stroke();
+      }
+      if (enemy.bossState === "laserWarn" || enemy.bossState === "laserDash") {
+        const lines = enemy.bossLaserLines || [];
+        for (let i = 0; i < lines.length; i += 1) {
+          const line = lines[i];
+          ctx.save();
+          ctx.translate(enemy.x, enemy.y);
+          ctx.rotate(line.angle);
+          const active = i === enemy.bossLaserIndex;
+          ctx.fillStyle = active ? "rgba(255,85,112,0.24)" : "rgba(255,85,112,0.13)";
+          ctx.strokeStyle = active ? "rgba(255,255,255,0.82)" : "rgba(255,85,112,0.48)";
+          ctx.lineWidth = active ? 3 : 1.5;
+          roundRect(ctx, 0, -11, 1240, 22, 4);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  drawAttackRanges() {
+    if (this.mode !== "combat" && this.mode !== "safe" && this.mode !== "bossIntro") return;
+    for (const weapon of this.weapons || []) {
+      if (weapon.id !== "knife" && weapon.id !== "fist") continue;
+      const target = this.findTarget(weapon.range + 44);
+      const angle = target ? Math.atan2(target.y - this.player.y, target.x - this.player.x) : Math.atan2(this.player.faceY || 0, this.player.faceX || 1);
+      ctx.save();
+      ctx.translate(this.player.x, this.player.y);
+      ctx.rotate(angle);
+      if (weapon.id === "knife") {
+        ctx.fillStyle = "rgba(255, 230, 109, 0.12)";
+        ctx.strokeStyle = "rgba(255, 230, 109, 0.62)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, weapon.range + 18, -0.82, 0.82);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "rgba(78, 226, 160, 0.12)";
+        ctx.strokeStyle = "rgba(78, 226, 160, 0.58)";
+        ctx.lineWidth = 2;
+        roundRect(ctx, 8, -22, weapon.range + 30, 44, 8);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+
+  drawFloorTransition() {
+    if (!this.floorTransition) return;
+    const { phase, time, duration } = this.floorTransition;
+    const p = clamp(time / duration, 0, 1);
+    const reveal = phase === "enter" ? 1 - p : p;
+    const tile = 34;
+    const span = VIEW.width + VIEW.height;
+    ctx.save();
+    ctx.setTransform(canvas.width / VIEW.width, 0, 0, canvas.height / VIEW.height, 0, 0);
+    ctx.fillStyle = "#05070d";
+    for (let y = -tile; y < VIEW.height + tile; y += tile) {
+      for (let x = -tile; x < VIEW.width + tile; x += tile) {
+        const diagonal = (x + y + tile) / span;
+        const local = clamp((reveal - diagonal + 0.18) / 0.24, 0, 1);
+        if (local <= 0) continue;
+        const s = tile * local;
+        ctx.beginPath();
+        ctx.moveTo(x + tile / 2, y + tile / 2 - s / 2);
+        ctx.lineTo(x + tile / 2 + s / 2, y + tile / 2);
+        ctx.lineTo(x + tile / 2, y + tile / 2 + s / 2);
+        ctx.lineTo(x + tile / 2 - s / 2, y + tile / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  drawBossIntroOverlay() {
+    if (!this.bossIntro) return;
+    const t = this.bossIntro.time;
+    const duration = this.bossIntro.duration || 3.2;
+    const alpha = t < duration - 0.45 ? 1 : clamp((duration - t) / 0.45, 0, 1);
+    ctx.save();
+    ctx.setTransform(canvas.width / VIEW.width, 0, 0, canvas.height / VIEW.height, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(0,0,0,0.36)";
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    const lines = [
+      { y: 58, r: -0.24, x: -80, speed: 220, w: 420 },
+      { y: 148, r: 0.22, x: -140, speed: 260, w: 520 },
+      { y: 258, r: -0.2, x: -60, speed: 180, w: 460 },
+      { y: 402, r: 0.24, x: -180, speed: 240, w: 560 },
+      { y: 528, r: -0.18, x: -110, speed: 210, w: 480 },
+    ];
+    lines.forEach((line, index) => {
+      const slide = Math.min(0, line.x + t * line.speed - (index % 2 ? 28 : 0));
+      ctx.save();
+      ctx.translate(slide, line.y);
+      ctx.rotate(line.r);
+      this.drawWarningTape(line.w, 34, index);
+      ctx.restore();
+    });
+    ctx.restore();
+  },
+
+  drawWarningTape(width, height, offset = 0) {
+    ctx.fillStyle = "#f2131f";
+    ctx.fillRect(0, -height / 2, width, height);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, -height / 2, width, height);
+    ctx.clip();
+    ctx.fillStyle = "#08080a";
+    for (let x = -height * 2 + offset * 9; x < width + height; x += 28) {
+      ctx.save();
+      ctx.translate(x, 0);
+      ctx.rotate(-0.64);
+      ctx.fillRect(-5, -height, 13, height * 2);
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.strokeStyle = "#08080a";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, -height / 2, width, height);
+    ctx.fillStyle = "#08080a";
+    ctx.font = "900 20px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let x = 72; x < width; x += 142) {
+      ctx.strokeStyle = "rgba(255,255,255,0.82)";
+      ctx.lineWidth = 3;
+      ctx.strokeText("⚠ WARING", x, 0);
+      ctx.fillText("⚠ WARING", x, 0);
+    }
   },
 
   drawSpriteFrame(image, frame, row, frameWidth, frameHeight, x, y, width, height, options = {}) {
@@ -1693,7 +2180,29 @@ Object.assign(RogueGame.prototype, {
     return keyMoving || stickMoving ? "move" : "idle";
   },
 
+  heroFacingKey(prefix) {
+    const p = this.player;
+    if (Math.abs(p.faceY || 0) > Math.abs(p.faceX || 0) * 0.78) return `${prefix}_${p.faceY < 0 ? "back" : "front"}`;
+    return `${prefix}_${p.faceX < 0 ? "left" : "right"}`;
+  },
+
+  drawDirectionalHeroSprite() {
+    const prefix = this.player.attackAnimTime > 0 ? "attack" : "idle";
+    const key = this.heroFacingKey(prefix);
+    const sprite = ROGUE_SPRITES.hero.directions?.[key];
+    const image = this.sprites?.images?.[key];
+    if (!sprite || !image || !image.complete || image.naturalWidth <= 0) return false;
+    const rowHeight = image.naturalHeight / 4;
+    const bob = prefix === "idle" ? Math.sin(performance.now() / 220) * 1.2 : 0;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, 0, sprite.row * rowHeight, image.naturalWidth, rowHeight, this.player.x - 38, this.player.y - 62 + bob, 76, 116);
+    ctx.restore();
+    return true;
+  },
+
   drawPlayerSprite() {
+    if (this.drawDirectionalHeroSprite()) return true;
     const image = this.sprites?.images?.hero;
     if (!this.spriteReady("hero")) return false;
     const animName = this.activeHeroAnimation();
@@ -1708,8 +2217,69 @@ Object.assign(RogueGame.prototype, {
     const sprite = ROGUE_SPRITES.effects[key];
     const image = this.sprites.images[key];
     const progress = 1 - clamp(effect.life / effect.maxLife, 0, 1);
-    const frame = Math.min(sprite.frames - 1, Math.floor(progress * sprite.frames));
+    const frame = effect.frameOverride ?? Math.min(sprite.frames - 1, Math.floor(progress * sprite.frames));
+    effect.frameOverride = undefined;
     return this.drawSpriteFrame(image, frame, 0, sprite.frameWidth, sprite.frameHeight, x, y, size, size, { rotation, alpha });
+  },
+
+  drawMagicMissileEffect(effect, progress, x, y, angle, fade) {
+    if (!this.spriteReady("missile")) return false;
+    const travelEnd = 0.56;
+    let frame = 0;
+    let drawX = x;
+    let drawY = y;
+    let rotation = angle;
+    let size = 64;
+    let alpha = fade;
+    if (progress < travelEnd) {
+      const travel = clamp(progress / travelEnd, 0, 1);
+      frame = Math.min(2, Math.floor(travel * 3));
+      size = [46, 60, 78][frame] || 66;
+      alpha = 0.95;
+    } else {
+      const impact = clamp((progress - travelEnd) / (1 - travelEnd), 0, 1);
+      frame = 3 + Math.min(3, Math.floor(impact * 4));
+      drawX = effect.x;
+      drawY = effect.y;
+      rotation = 0;
+      size = 86 + impact * 34;
+      alpha = frame >= 6 ? 0.58 * fade : 0.92 * fade;
+    }
+    effect.frameOverride = frame;
+    return this.drawEffectAsset(effect, "missile", drawX, drawY, size, rotation, alpha);
+  },
+
+  drawHitEffects() {
+    for (const fx of this.active.hitEffects || []) {
+      const t = clamp(fx.life / fx.maxLife, 0, 1);
+      const progress = 1 - t;
+      ctx.save();
+      if (fx.kind === "dust") {
+        ctx.globalAlpha = t * 0.52;
+        ctx.fillStyle = fx.color || "rgba(210,205,195,0.7)";
+        ctx.translate(fx.x, fx.y);
+        ctx.rotate(fx.angle || 0);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, fx.radius * (1 + progress * 1.8), fx.radius * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.globalAlpha = t * 0.88;
+        ctx.strokeStyle = fx.color || COLORS.text;
+        ctx.lineWidth = 2 + 3 * t;
+        ctx.translate(fx.x, fx.y);
+        ctx.rotate(fx.angle || 0);
+        ctx.beginPath();
+        for (let i = 0; i < 6; i += 1) {
+          const a = (i / 6) * Math.PI * 2;
+          const r1 = fx.radius * (0.25 + progress * 0.25);
+          const r2 = fx.radius * (0.75 + progress * 0.75);
+          ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+          ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   },
 
   drawPlayer() {
@@ -1720,7 +2290,7 @@ Object.assign(RogueGame.prototype, {
     ctx.ellipse(p.x, p.y + 14, 21, 8, 0, 0, Math.PI * 2);
     ctx.fill();
     if (p.absorb > 0 || p.shield > 0) {
-      ctx.strokeStyle = rgba(p.shield > 0 ? COLORS.xp : COLORS.gold, clamp(p.absorb || 0.5, 0.22, 0.8));
+      ctx.strokeStyle = rgba(p.shield > 0 ? COLORS.echo : COLORS.gold, clamp(p.absorb || 0.5, 0.22, 0.8));
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(p.x, p.y, 28 + (1 - clamp(p.absorb, 0, 1)) * 12, 0, Math.PI * 2);
@@ -1754,7 +2324,16 @@ Object.assign(RogueGame.prototype, {
       ctx.beginPath();
       ctx.ellipse(enemy.x, enemy.y + enemy.radius, enemy.radius, enemy.radius * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
-      const bodyColor = enemy.flash > 0 ? "#ffffff" : enemy.slow > 0 ? COLORS.frost : enemy.color;
+      const bodyColor = enemy.flash > 0 ? "#ff435c" : enemy.slow > 0 ? COLORS.frost : enemy.color;
+      if (enemy.flash > 0) {
+        ctx.save();
+        ctx.globalAlpha = clamp(enemy.flash / 0.16, 0, 1) * 0.45;
+        ctx.fillStyle = "#ff435c";
+        ctx.shadowColor = "#ff435c";
+        ctx.shadowBlur = 14;
+        pixelCircle(ctx, enemy.x, enemy.y, enemy.radius + 3);
+        ctx.restore();
+      }
       drawChaosBlob(ctx, enemy.x, enemy.y, enemy.radius, bodyColor, enemy.morph || 0, enemy.shape || "box");
       if (enemy.rank && enemy.rank !== "small") {
         ctx.strokeStyle = enemy.color;
@@ -1781,45 +2360,16 @@ Object.assign(RogueGame.prototype, {
       ctx.translate(drop.x, drop.y);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = drop.color;
-      ctx.shadowBlur = drop.kind === "relic" ? 18 : drop.kind === "exp" ? 10 : 6;
-      if (drop.kind === "exp") {
-        ctx.fillStyle = drop.color;
-        ctx.beginPath();
-        ctx.moveTo(0, -drop.radius - 2);
-        ctx.lineTo(drop.radius + 2, 0);
-        ctx.lineTo(0, drop.radius + 2);
-        ctx.lineTo(-drop.radius - 2, 0);
-        ctx.closePath();
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = drop.kind === "coinBag" ? "#ffd166" : COLORS.gold;
+      ctx.beginPath();
+      ctx.arc(0, 0, drop.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5f4300";
+      if (drop.kind === "coinBag") {
+        roundRect(ctx, -5, -5, 10, 12, 3);
         ctx.fill();
-        ctx.fillStyle = "#0a1730";
-        pixelCircle(ctx, 0, 0, 2.2);
-      } else if (drop.kind === "relic") {
-        ctx.strokeStyle = "#ffd166";
-        ctx.lineWidth = 2;
-        ctx.fillStyle = "#f7e7ff";
-        ctx.beginPath();
-        for (let i = 0; i < 6; i += 1) {
-          const a = -Math.PI / 2 + (i / 6) * Math.PI * 2;
-          const r = i % 2 ? drop.radius * 0.72 : drop.radius + 4;
-          const x = Math.cos(a) * r;
-          const y = Math.sin(a) * r;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = drop.kind === "coinBag" ? "#ffd166" : COLORS.gold;
-        ctx.beginPath();
-        ctx.arc(0, 0, drop.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#5f4300";
-        if (drop.kind === "coinBag") {
-          roundRect(ctx, -5, -5, 10, 12, 3);
-          ctx.fill();
-        } else ctx.fillRect(-1.5, -4, 3, 8);
-      }
+      } else ctx.fillRect(-1.5, -4, 3, 8);
       ctx.restore();
     }
   },
@@ -1838,21 +2388,42 @@ Object.assign(RogueGame.prototype, {
           ctx.arc(effect.x + Math.cos(effect.direction) * 16, effect.y + Math.sin(effect.direction) * 6, effect.radius, effect.direction - 0.85, effect.direction + 0.85);
           ctx.stroke();
         }
-      } else if (effect.type === "missile" || effect.type === "dart") {
+      } else if (effect.type === "missile" || effect.type === "dart" || effect.type === "needle") {
         const progress = 1 - t;
         const x = lerp(effect.fromX, effect.x, progress);
         const y = lerp(effect.fromY, effect.y, progress);
         const angle = Math.atan2(effect.y - effect.fromY, effect.x - effect.fromX);
-        ctx.strokeStyle = rgba(effect.color, t * 0.75);
-        ctx.lineWidth = effect.type === "dart" ? 3 : 6;
-        ctx.beginPath();
-        ctx.moveTo(effect.fromX, effect.fromY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        if (!this.drawEffectAsset(effect, effect.type, x, y, effect.type === "dart" ? 72 : 58, angle, 0.95)) {
-          ctx.fillStyle = effect.color;
-          effect.type === "dart" ? ctx.fillRect(x - 7, y - 2, 14, 4) : pixelCircle(ctx, x, y, 6);
+        const isNeedle = effect.type === "needle";
+        ctx.strokeStyle = rgba(effect.color, effect.type === "dart" || isNeedle ? t * 0.75 : t * 0.34);
+        ctx.lineWidth = effect.type === "dart" || isNeedle ? 3 : 4;
+        if (effect.type === "dart" || isNeedle || progress < 0.82) {
+          ctx.beginPath();
+          ctx.moveTo(effect.fromX, effect.fromY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
         }
+        const drewAsset = effect.type === "missile"
+          ? this.drawMagicMissileEffect(effect, progress, x, y, angle, 0.95)
+          : this.drawEffectAsset(effect, effect.type, x, y, isNeedle ? 96 : 72, angle, 0.95);
+        if (!drewAsset) {
+          ctx.fillStyle = effect.color;
+          effect.type === "missile" ? pixelCircle(ctx, x, y, 6) : ctx.fillRect(x - 7, y - 2, 14, 4);
+        }
+      } else if (effect.type === "bossMissile") {
+        ctx.fillStyle = COLORS.danger;
+        ctx.strokeStyle = "rgba(255,255,255,0.58)";
+        ctx.lineWidth = 2;
+        pixelCircle(ctx, effect.x, effect.y, effect.radius + 4);
+        ctx.stroke();
+      } else if (effect.type === "bossAoe") {
+        const progress = 1 - t;
+        ctx.fillStyle = progress < 0.68 ? "rgba(255,85,112,0.16)" : "rgba(255,85,112,0.32)";
+        ctx.strokeStyle = progress < 0.68 ? "rgba(255,85,112,0.82)" : "rgba(255,255,255,0.72)";
+        ctx.lineWidth = progress < 0.68 ? 2 : 4;
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, effect.radius * (0.78 + progress * 0.22), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       } else if (effect.type === "triBurst") {
         ctx.strokeStyle = rgba(effect.color, 0.22 + t * 0.6);
         ctx.lineWidth = 4;
@@ -1888,12 +2459,22 @@ Object.assign(RogueGame.prototype, {
 
   drawTexts() {
     ctx.textAlign = "center";
-    ctx.font = "900 10px ui-sans-serif, system-ui";
     for (const text of this.active.texts) {
-      ctx.globalAlpha = clamp(text.life / 0.5, 0, 1);
+      const maxLife = text.maxLife || 0.5;
+      const t = clamp(text.life / maxLife, 0, 1);
+      const progress = 1 - t;
+      const size = text.size || 12;
+      ctx.save();
+      ctx.translate(text.x, text.y);
+      ctx.scale(1 + progress * (text.kind === "combo" ? 0.18 : 0.1), 1 + progress * 0.04);
+      ctx.globalAlpha = t;
+      ctx.font = `900 ${size}px ui-sans-serif, system-ui`;
       ctx.fillStyle = text.color;
-      ctx.fillText(text.text, text.x, text.y);
-      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(8,10,18,0.84)";
+      ctx.lineWidth = text.kind === "combo" ? 5 : 4;
+      ctx.strokeText(text.text, 0, 0);
+      ctx.fillText(text.text, 0, 0);
+      ctx.restore();
     }
   },
 
@@ -1932,6 +2513,51 @@ Object.assign(RogueGame.prototype, {
       ctx.restore();
     }
     ctx.restore();
+  },
+
+  drawMinimap() {
+    const mini = ui.minimapCanvas;
+    if (!mini) return;
+    const mctx = mini.getContext("2d");
+    const w = mini.width;
+    const h = mini.height;
+    mctx.clearRect(0, 0, w, h);
+    mctx.fillStyle = "rgba(6,10,18,0.86)";
+    mctx.fillRect(0, 0, w, h);
+    mctx.strokeStyle = "rgba(255,255,255,0.22)";
+    mctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    const sx = w / WORLD.width;
+    const sy = h / WORLD.height;
+    const dot = (x, y, color, size = 3, shape = "circle") => {
+      const px = clamp(x * sx, 4, w - 4);
+      const py = clamp(y * sy, 4, h - 4);
+      mctx.fillStyle = color;
+      if (shape === "diamond") {
+        mctx.beginPath();
+        mctx.moveTo(px, py - size);
+        mctx.lineTo(px + size, py);
+        mctx.lineTo(px, py + size);
+        mctx.lineTo(px - size, py);
+        mctx.closePath();
+        mctx.fill();
+      } else if (shape === "square") {
+        mctx.fillRect(px - size, py - size, size * 2, size * 2);
+      } else {
+        mctx.beginPath();
+        mctx.arc(px, py, size, 0, Math.PI * 2);
+        mctx.fill();
+      }
+    };
+    if (this.safeEvent && !this.safeEvent.completed) {
+      dot(this.safeEvent.x, this.safeEvent.y, this.safeEvent.type === "shrine" ? rarityColor("epic") : rarityColor("legendary"), 4, this.safeEvent.type === "shrine" ? "diamond" : "square");
+    }
+    for (const enemy of this.active.enemies || []) {
+      if (enemy.rank === "boss") dot(enemy.x, enemy.y, rarityColor("legendary"), 5, "diamond");
+      else if (enemy.rank === "lieutenant") dot(enemy.x, enemy.y, rarityColor("epic"), 4, "diamond");
+    }
+    const special = this.specialForFloor(this.floor);
+    if (special && !this.specialSpawned && special.rank !== "elite") dot(WORLD.maxX - 80, WORLD.minY + 90, rarityColor("common"), 3, "diamond");
+    dot(this.player.x, this.player.y, "#ffffff", 3.5, "circle");
   },
 });
 
@@ -2015,6 +2641,7 @@ Object.assign(RogueGame.prototype, {
       this.player.x += (dx / len) * this.player.speed * dt;
       this.player.y += (dy / len) * this.player.speed * dt;
       if (Math.abs(dx) > 0.05) this.player.faceX = dx < 0 ? -1 : 1;
+      if (Math.abs(dy) > 0.05) this.player.faceY = dy;
     }
     this.player.x = clamp(this.player.x, WORLD.minX, WORLD.maxX);
     this.player.y = clamp(this.player.y, WORLD.minY, WORLD.maxY);
@@ -2032,16 +2659,51 @@ Object.assign(RogueGame.prototype, {
     for (let i = this.active.effects.length - 1; i >= 0; i -= 1) {
       const effect = this.active.effects[i];
       if (effect.type === "enemyShot") {
+        if (this.mode !== "combat" && this.mode !== "safe") continue;
         effect.x += effect.vx * dt;
         effect.y += effect.vy * dt;
+        const blocker = this.findBulletBlocker(effect, i);
+        if (blocker >= 0) {
+          this.addEffect("ring", effect.x, effect.y, 26, COLORS.echo);
+          this.active.effects[blocker].life = 0;
+          this.releaseActive(this.active.effects, i, this.effectPool);
+          continue;
+        }
         if (distance(effect, this.player) <= effect.radius + this.player.radius) {
           this.hurtPlayer(effect.damage);
           this.releaseActive(this.active.effects, i, this.effectPool);
           continue;
         }
       }
+      if (effect.type === "bossMissile") {
+        effect.x += effect.vx * dt;
+        effect.y += effect.vy * dt;
+        if (distance(effect, this.player) <= effect.radius + this.player.radius) {
+          this.hurtPlayer(effect.damage);
+          this.addEffect("ring", effect.x, effect.y, 42, COLORS.danger);
+          this.releaseActive(this.active.effects, i, this.effectPool);
+          continue;
+        }
+      }
+      if (effect.type === "bossAoe") {
+        const progress = 1 - effect.life / effect.maxLife;
+        if (!effect.didDamage && progress >= 0.68) {
+          effect.didDamage = true;
+          if (distance(effect, this.player) <= effect.radius + this.player.radius) this.hurtPlayer(effect.damage);
+          this.shake = Math.max(this.shake, 4.5);
+        }
+      }
       effect.life -= dt;
       if (effect.life <= 0) this.releaseActive(this.active.effects, i, this.effectPool);
+    }
+    for (let i = this.active.hitEffects.length - 1; i >= 0; i -= 1) {
+      const fx = this.active.hitEffects[i];
+      fx.x += (fx.vx || 0) * dt;
+      fx.y += (fx.vy || 0) * dt;
+      fx.vx *= Math.pow(0.04, dt);
+      fx.vy *= Math.pow(0.04, dt);
+      fx.life -= dt;
+      if (fx.life <= 0) this.releaseActive(this.active.hitEffects, i, this.hitEffectPool);
     }
     for (let i = this.active.particles.length - 1; i >= 0; i -= 1) {
       const p = this.active.particles[i];
@@ -2052,7 +2714,8 @@ Object.assign(RogueGame.prototype, {
     }
     for (let i = this.active.texts.length - 1; i >= 0; i -= 1) {
       const text = this.active.texts[i];
-      text.y -= 24 * dt;
+      text.x += (text.vx || 0) * dt;
+      text.y += (text.vy || -24) * dt;
       text.life -= dt;
       if (text.life <= 0) this.releaseActive(this.active.texts, i, this.textPool);
     }
@@ -2065,6 +2728,9 @@ Object.assign(RogueGame.prototype, {
     this.spawnTimer -= dt;
     this.shake = Math.max(0, this.shake - dt * 18);
     this.triBurstCooldown = Math.max(0, this.triBurstCooldown - dt);
+    this.comboTimer = Math.max(0, this.comboTimer - dt);
+    this.comboTextCooldown = Math.max(0, this.comboTextCooldown - dt);
+    if (this.comboTimer <= 0) this.comboCount = 0;
     this.killBuffTimer = Math.max(0, this.killBuffTimer - dt);
     this.riftPulseTimer = Math.max(0, this.riftPulseTimer - dt);
     this.updatePlayer(dt);
@@ -2075,7 +2741,6 @@ Object.assign(RogueGame.prototype, {
       this.updateUi();
       return;
     }
-    this.updateDivinePulse();
     this.updateSpawn();
     this.updateWeapons(dt);
     this.updateEnemies(dt);
@@ -2094,25 +2759,11 @@ Object.assign(RogueGame.prototype, {
     else this.openBlacksmithEvent();
   },
 
-  updateDivinePulse() {
-    if (!this.hasDivine("riftPulse")) return;
-    if (this.riftPulseTimer > 0) return;
-    this.riftPulseTimer = 10;
-    this.areaDamage(this.player.x, this.player.y, 126, 32 + this.level * 4, COLORS.xp);
-    this.say("裂隙替你清了一圈场。");
-    this.sfx.play("level");
-  },
-
-  applyFloorInterest() {
-    const blessing = this.getDivine("greedInterest");
-    if (!blessing || this.coins <= 0) return;
-    const gain = Math.max(1, Math.floor(this.coins * 0.08));
-    this.coins += gain;
-    this.runStats.coinsEarned += gain;
-    this.floatText(`利息 +${gain}`, this.player.x, this.player.y - 42, COLORS.gold);
-  },
-
   updateSpawn() {
+    if (this.cycleStep(this.floor) === 10) {
+      if (!this.specialSpawned) this.spawnSpecial();
+      return;
+    }
     if (this.floorSpawned >= this.floorSpawnLimit) {
       if (this.specialForFloor(this.floor) && !this.specialSpawned) this.spawnSpecial();
       return;
@@ -2137,7 +2788,6 @@ Object.assign(RogueGame.prototype, {
       hp: 0.66 + floor * 0.055 + Math.max(0, floor - 9) * 0.035,
       attack: 0.48 + floor * 0.045,
       speed: 0.9 + Math.min(0.48, floor * 0.018),
-      xp: floor === 1 ? 1.7 : 0.86 + floor * 0.045,
     };
   },
 
@@ -2145,11 +2795,11 @@ Object.assign(RogueGame.prototype, {
     if (this.floorSpawned >= this.floorSpawnLimit) return false;
     const scale = this.enemyScaleFor(this.floor);
     const pool = [
-      { kind: "grunt", hp: 12, speed: 42, radius: 10, attack: 4, xp: 8, coins: 2, color: "#ff5570", shape: "box" },
-      { kind: "fast", hp: 8, speed: 66, radius: 9, attack: 3, xp: 7, coins: 1, color: "#ffb86b", shape: "diamond" },
-      { kind: "heavy", hp: 20, speed: 34, radius: 13, attack: 5, xp: 12, coins: 3, color: "#e7edf5", shape: "box" },
+      { kind: "grunt", hp: 12, speed: 42, radius: 10, attack: 4, coins: 2, color: "#ff5570", shape: "box" },
+      { kind: "fast", hp: 8, speed: 66, radius: 9, attack: 3, coins: 1, color: "#ffb86b", shape: "diamond" },
+      { kind: "heavy", hp: 20, speed: 34, radius: 13, attack: 5, coins: 3, color: "#e7edf5", shape: "box" },
     ];
-    if (this.floor >= 4) pool.push({ kind: "shooter", hp: 15, speed: 30, radius: 12, attack: 7, xp: 13, coins: 4, color: "#b584ff", shape: "hollow" });
+    if (this.floor >= 4) pool.push({ kind: "shooter", hp: 15, speed: 30, radius: 12, attack: 7, coins: 4, color: "#b584ff", shape: "hollow" });
     const base = pool[Math.floor(Math.random() * pool.length)];
     const early = this.floor === 1 && this.floorTime < 20;
     const enemy = this.enemyPool.get();
@@ -2165,13 +2815,14 @@ Object.assign(RogueGame.prototype, {
       radius: base.radius,
       attack: base.attack * scale.attack * (early ? 0.48 : 1) * (1 + (this.currentFloorModifiers.enemyDamageMult || 0)),
       defense: 0,
-      xp: Math.ceil(base.xp * scale.xp),
       coins: Math.max(1, Math.round(base.coins * (0.9 + this.floor * 0.04))),
       color: base.color,
       shape: base.shape,
       attackTimer: random(0.6, 1.2),
       shootTimer: base.kind === "shooter" ? random(1.7, 2.8) : 99,
       flash: 0,
+      knockX: 0,
+      knockY: 0,
       slow: 0,
       bleed: 0,
       burn: 0,
@@ -2191,25 +2842,31 @@ Object.assign(RogueGame.prototype, {
     if (!spec || this.specialSpawned) return;
     const scale = this.enemyScaleFor(this.floor);
     const enemy = this.enemyPool.get();
-    this.placeOnEdge(enemy);
+    if (spec.rank === "boss") {
+      enemy.x = WORLD.width / 2;
+      enemy.y = WORLD.minY + 260;
+    } else {
+      this.placeOnEdge(enemy);
+    }
     Object.assign(enemy, {
       active: true,
       kind: "special",
       rank: spec.rank,
       label: spec.label,
-      hp: 18 * spec.hp * scale.hp,
-      maxHp: 18 * spec.hp * scale.hp,
+      hp: 18 * spec.hp * scale.hp * (spec.rank === "boss" ? 10 : 1),
+      maxHp: 18 * spec.hp * scale.hp * (spec.rank === "boss" ? 10 : 1),
       speed: 31 * scale.speed,
       radius: 14 * spec.radius,
       attack: 6 * scale.attack * (spec.rank === "boss" ? 1.35 : 1) * (1 + (this.currentFloorModifiers.enemyDamageMult || 0)),
       defense: 0.08,
-      xp: Math.ceil(90 + this.floor * 18),
       coins: Math.ceil((30 + this.floor * 7) * this.runStats.rewardMultiplier),
       color: spec.color,
       shape: "box",
       attackTimer: 0.9,
       shootTimer: 1.6,
       flash: 0,
+      knockX: 0,
+      knockY: 0,
       slow: 0,
       bleed: 0,
       burn: 0,
@@ -2218,13 +2875,96 @@ Object.assign(RogueGame.prototype, {
       pulse: 0,
       morph: random(0, Math.PI * 2),
       spin: random(-0.8, 0.8),
+      bossState: spec.rank === "boss" ? "idle" : "",
+      bossTimer: spec.rank === "boss" ? 1.1 : 0,
+      bossAbilityIndex: 0,
+      bossShotTimer: 0,
+      bossWaveDamageTimer: 0,
+      bossAngle: 0,
+      bossHalfPhaseDone: false,
+      bossLaserLines: [],
+      bossLaserIndex: 0,
+      bossLockTarget: null,
+      invulnerable: false,
     });
     this.specialSpawned = true;
     this.specialDefeated = false;
     this.active.enemies.push(enemy);
     this.shake = Math.max(this.shake, spec.rank === "boss" ? 9 : 5);
-    this.openBossCue(spec);
+    if (spec.rank === "boss") this.startBossIntro(enemy);
+    else this.openBossCue(spec);
     this.sfx.play(spec.rank === "boss" ? "boss" : "level");
+  },
+
+  startBossIntro(boss) {
+    this.mode = "bossIntro";
+    this.bossIntro = { boss, time: 0, duration: 3.25, absorbed: false };
+    boss.bossState = "intro";
+    boss.bossTimer = 99;
+    const count = this.mobileViewport ? 7 : 11;
+    for (let i = 0; i < count; i += 1) {
+      const minion = this.enemyPool.get();
+      const angle = (i / count) * Math.PI * 2 + random(-0.22, 0.22);
+      const radius = random(135, 265);
+      Object.assign(minion, {
+        active: true,
+        kind: "introMinion",
+        rank: "small",
+        label: "",
+        hp: 1,
+        maxHp: 1,
+        speed: 0,
+        radius: random(8, 12),
+        attack: 0,
+        defense: 0,
+        coins: 0,
+        color: i % 2 ? "#ff5570" : "#e7edf5",
+        shape: i % 3 ? "diamond" : "box",
+        x: clamp(boss.x + Math.cos(angle) * radius, WORLD.minX + 16, WORLD.maxX - 16),
+        y: clamp(boss.y + Math.sin(angle) * radius, WORLD.minY + 16, WORLD.maxY - 16),
+        attackTimer: 99,
+        shootTimer: 99,
+        flash: 0,
+        knockX: 0,
+        knockY: 0,
+        slow: 0,
+        bleed: 0,
+        burn: 0,
+        cursed: 0,
+        marked: 0,
+        pulse: random(0, Math.PI * 2),
+        morph: random(0, Math.PI * 2),
+        spin: random(-1.2, 1.2),
+        introAbsorb: true,
+      });
+      this.active.enemies.push(minion);
+    }
+  },
+
+  updateBossIntro(dt) {
+    const intro = this.bossIntro;
+    if (!intro?.boss) return;
+    intro.time += dt;
+    this.shake = Math.max(this.shake, intro.time < 2.35 ? 10 : 5);
+    const pull = clamp((intro.time - 0.68) / 1.7, 0, 1);
+    for (let i = this.active.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = this.active.enemies[i];
+      if (!enemy.introAbsorb) continue;
+      enemy.x = lerp(enemy.x, intro.boss.x, 1 - Math.pow(0.0008, dt * (2 + pull * 4)));
+      enemy.y = lerp(enemy.y, intro.boss.y, 1 - Math.pow(0.0008, dt * (2 + pull * 4)));
+      enemy.radius = Math.max(1, enemy.radius - dt * 8 * pull);
+      if (pull >= 0.98 || distance(enemy, intro.boss) < intro.boss.radius * 0.55) {
+        this.burst(enemy.x, enemy.y, COLORS.danger, 5);
+        this.releaseActive(this.active.enemies, i, this.enemyPool);
+      }
+    }
+    if (intro.time >= intro.duration) {
+      this.bossIntro = null;
+      intro.boss.bossState = "idle";
+      intro.boss.bossTimer = 0.5;
+      this.mode = "combat";
+      this.say("阶段 Boss 已进入战斗。");
+    }
   },
 
   viewBounds(padding = 0) {
@@ -2237,6 +2977,15 @@ Object.assign(RogueGame.prototype, {
       top: clamp((this.camera?.y || 0) - padding, 0, WORLD.height),
       bottom: clamp((this.camera?.y || 0) + height + padding, 0, WORLD.height),
     };
+  },
+
+  isEnemyVisible(enemy, padding = 32) {
+    if (!enemy) return false;
+    const view = this.viewBounds(padding);
+    return enemy.x + enemy.radius >= view.left
+      && enemy.x - enemy.radius <= view.right
+      && enemy.y + enemy.radius >= view.top
+      && enemy.y - enemy.radius <= view.bottom;
   },
 
   placeOnEdge(enemy) {
@@ -2277,7 +3026,7 @@ Object.assign(RogueGame.prototype, {
   },
 
   weaponCooldown(weapon) {
-    const hasteFromKills = this.hasDivine("bloodEncore") ? Math.min(0.24, this.killHasteStacks * 0.03) : 0;
+    const hasteFromKills = 0;
     const attackSpeed = this.upgradeStats.attackSpeedMult + this.weaponEnchantValue(weapon, "attackSpeedMult") + hasteFromKills;
     return Math.max(0.14, weapon.cooldown / Math.max(0.35, 1 + attackSpeed));
   },
@@ -2286,16 +3035,54 @@ Object.assign(RogueGame.prototype, {
     return this.weapons.find((weapon) => weapon.id === this.startingWeapon) || this.weapons[0] || null;
   },
 
+  faceAngle(angle) {
+    this.player.faceX = Math.cos(angle) < -0.05 ? -1 : 1;
+    this.player.faceY = Math.sin(angle);
+  },
+
   updateWeapons(dt) {
     for (const weapon of this.weapons) {
       weapon.timer -= dt;
       weapon.killBuffTimer = Math.max(0, (weapon.killBuffTimer || 0) - dt);
       if (weapon.timer > 0) continue;
-      if (weapon.id === "knife") this.castKnife(weapon);
-      if (weapon.id === "magicMissile") this.castMagicMissile(weapon);
-      if (weapon.id === "dart") this.castDart(weapon);
+      if (weapon.id === "fist") this.castFist(weapon);
+      else if (weapon.id === "knife") this.castKnife(weapon);
+      else if (weapon.id === "magicMissile") this.castMagicMissile(weapon);
+      else if (weapon.id === "dart") this.castDart(weapon);
+      else if (weapon.id === "needle") this.castNeedle(weapon);
       weapon.timer = this.weaponCooldown(weapon);
     }
+  },
+
+  castFist(weapon) {
+    const target = this.findTarget(weapon.range + 36);
+    if (!target) return;
+    const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    weapon.attackCount = (weapon.attackCount || 0) + 1;
+    this.damageEnemy(target, this.weaponDamage(weapon), weapon.color, "fist", { weapon });
+    if (weapon.level >= 2) this.damageEnemy(target, this.weaponDamage(weapon, weapon.damage * 0.72), rgba(weapon.color, 0.9), "fist", { weapon });
+    if (weapon.level >= 3 && weapon.attackCount % 3 === 0) {
+      this.areaDamage(this.player.x + ux * 34, this.player.y + uy * 34, weapon.range + 16, this.weaponDamage(weapon, weapon.damage * 0.85), weapon.color);
+      this.shake = Math.max(this.shake, 3.2);
+    }
+    if (weapon.level >= 4 && weapon.attackCount % 4 === 0) {
+      this.player.x = clamp(this.player.x + ux * 36, WORLD.minX, WORLD.maxX);
+      this.player.y = clamp(this.player.y + uy * 36, WORLD.minY, WORLD.maxY);
+      this.areaDamage(this.player.x + ux * 22, this.player.y + uy * 22, weapon.range + 18, this.weaponDamage(weapon, weapon.damage * 0.75), COLORS.fire);
+    }
+    if (weapon.level >= 5 && weapon.attackCount % 5 === 0) {
+      for (let i = 0; i < 3; i += 1) this.areaDamage(this.player.x + ux * (26 + i * 18), this.player.y + uy * (26 + i * 18), weapon.range + 10, this.weaponDamage(weapon, weapon.damage * 0.46), weapon.color);
+      this.areaDamage(this.player.x, this.player.y, weapon.range + 52, this.weaponDamage(weapon, weapon.damage * 0.9), COLORS.gold);
+    }
+    this.player.attackLean = ux * 5;
+    this.player.attackAnim = "attackKnife";
+    this.player.attackAnimTime = 0.18;
+    this.faceAngle(angle);
+    this.addEffect("ring", this.player.x + ux * 28, this.player.y + uy * 18, weapon.range + 10, weapon.color, 0, 0, 0, { friendlyAttack: true });
+    this.recordWeaponHit("fist");
+    this.sfx.play("melee");
   },
 
   castKnife(weapon) {
@@ -2312,7 +3099,6 @@ Object.assign(RogueGame.prototype, {
       const dot = dist > 0 ? (vx / dist) * ux + (vy / dist) * uy : 1;
       if (dot < 0.28) continue;
       this.damageEnemy(enemy, this.weaponDamage(weapon), weapon.color, "knife", { armorPierce: this.weaponEnchantValue(weapon, "armorPierce"), weapon });
-      if (this.hasBlessing("blood")) enemy.bleed = 3.2;
       if (this.weaponHasEnchant(weapon, "burn")) enemy.burn = Math.max(enemy.burn || 0, this.weaponEnchantValue(weapon, "burn"));
       hits += 1;
     }
@@ -2321,10 +3107,26 @@ Object.assign(RogueGame.prototype, {
       this.player.attackLean = Math.cos(angle) * 4;
       this.player.attackAnim = "attackKnife";
       this.player.attackAnimTime = 0.24;
-      this.player.faceX = Math.cos(angle) < -0.05 ? -1 : 1;
+      this.faceAngle(angle);
       this.addEffect("slash", this.player.x, this.player.y, weapon.range + 10, weapon.color, angle);
+      if (weapon.level >= 2) {
+        this.addEffect("slash", this.player.x + ux * 10, this.player.y + uy * 8, weapon.range + 2, COLORS.gold, angle + 0.08);
+        this.areaDamage(this.player.x + ux * 24, this.player.y + uy * 12, weapon.range - 4, this.weaponDamage(weapon, weapon.damage * 0.52), COLORS.gold);
+      }
+      if (weapon.level >= 3 && weapon.attackCount % 3 === 0) {
+        this.addEffect("slash", this.player.x + ux * 44, this.player.y + uy * 18, weapon.range + 34, COLORS.echo, angle);
+        this.areaDamage(this.player.x + ux * 62, this.player.y + uy * 22, weapon.range + 30, this.weaponDamage(weapon, weapon.damage * 0.72), COLORS.echo);
+      }
+      if (weapon.level >= 4 && weapon.attackCount % 4 === 0) {
+        this.player.x = clamp(this.player.x + ux * 42, WORLD.minX, WORLD.maxX);
+        this.player.y = clamp(this.player.y + uy * 42, WORLD.minY, WORLD.maxY);
+        this.areaDamage(this.player.x, this.player.y, weapon.range + 18, this.weaponDamage(weapon, weapon.damage * 0.65), weapon.color);
+      }
+      if (weapon.level >= 5 && weapon.attackCount % 5 === 0) {
+        this.addEffect("triBurst", this.player.x, this.player.y, weapon.range + 58, weapon.color);
+        this.areaDamage(this.player.x, this.player.y, weapon.range + 64, this.weaponDamage(weapon, weapon.damage * 1.15), weapon.color);
+      }
       if (this.hasSynergy("arcaneBlades") && Math.random() < 0.35) this.spawnArcaneBladeMissile();
-      if (this.hasBlessing("wind")) this.addEffect("slash", this.player.x + ux * 18, this.player.y + uy * 18, weapon.range + 18, COLORS.xp, angle);
       const cycloneEvery = this.weaponEnchantValue(weapon, "knifeCycloneEvery");
       if (cycloneEvery && weapon.attackCount % Math.max(1, Math.round(cycloneEvery)) === 0) this.areaDamage(this.player.x, this.player.y, weapon.range + 36, this.weaponDamage(weapon, weapon.damage * 0.58), COLORS.warrior);
       if (this.weaponEnchantValue(weapon, "twinCast") && Math.random() < this.weaponEnchantValue(weapon, "twinCast")) {
@@ -2341,7 +3143,7 @@ Object.assign(RogueGame.prototype, {
     const echoEvery = this.weaponEnchantValue(weapon, "missileEchoEvery");
     const echo = echoEvery && weapon.attackCount % Math.max(1, Math.round(echoEvery)) === 0 ? 1 : 0;
     const twin = this.weaponEnchantValue(weapon, "twinCast") && Math.random() < this.weaponEnchantValue(weapon, "twinCast") ? 1 : 0;
-    const shots = weapon.shots + echo + twin + (this.hasBlessing("arcane") && Math.random() < 0.35 ? 1 : 0);
+    const shots = weapon.shots + echo + twin;
     let fired = 0;
     const used = [];
     const pierce = this.weaponEnchantValue(weapon, "missilePierce");
@@ -2352,6 +3154,23 @@ Object.assign(RogueGame.prototype, {
       const damage = this.weaponDamage(weapon, weapon.damage * (i > 0 ? 0.62 : 1));
       this.damageEnemy(target, damage, weapon.color, "magicMissile", { weapon });
       this.addEffect("missile", target.x, target.y, 0, weapon.color, 0, this.player.x, this.player.y - 12);
+      if (i === 0 && weapon.level >= 3 && weapon.attackCount % 3 === 0) {
+        this.addEffect("ring", target.x, target.y, 68, weapon.color);
+        this.areaDamage(target.x, target.y, weapon.level >= 4 ? 84 : 68, damage * (weapon.level >= 4 ? 0.72 : 0.42), weapon.color);
+      }
+      if (i === 0 && weapon.level >= 5 && weapon.attackCount % 5 === 0) {
+        const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+        const ux = Math.cos(angle);
+        const uy = Math.sin(angle);
+        for (const enemy of this.active.enemies) {
+          const vx = enemy.x - this.player.x;
+          const vy = enemy.y - this.player.y;
+          const along = vx * ux + vy * uy;
+          const side = Math.abs(vx * uy - vy * ux);
+          if (along > 0 && along < weapon.range + 70 && side < 18 + enemy.radius) this.damageEnemy(enemy, damage * 0.55, COLORS.echo, "magicMissile", { weapon });
+        }
+        this.addEffect("dart", this.player.x + ux * (weapon.range + 80), this.player.y + uy * (weapon.range + 80), 0, COLORS.echo, angle, this.player.x, this.player.y);
+      }
       if (pierce > 0) {
         const next = this.findTarget(weapon.range, used, true);
         if (next) {
@@ -2361,7 +3180,7 @@ Object.assign(RogueGame.prototype, {
         }
       }
       if (this.weaponEnchantValue(weapon, "missileExplode")) this.areaDamage(target.x, target.y, this.weaponEnchantValue(weapon, "missileExplode"), damage * 0.32, COLORS.fire);
-      if (this.weaponEnchantValue(weapon, "missileSplit") && Math.random() < this.weaponEnchantValue(weapon, "missileSplit")) {
+      if ((weapon.level >= 2 && i === 0) || (this.weaponEnchantValue(weapon, "missileSplit") && Math.random() < this.weaponEnchantValue(weapon, "missileSplit"))) {
         for (let s = 0; s < 2; s += 1) {
           const splitTarget = this.findTarget(150, used, false);
           if (!splitTarget) break;
@@ -2381,6 +3200,7 @@ Object.assign(RogueGame.prototype, {
     if (fired) {
       this.player.attackAnim = "attackMagic";
       this.player.attackAnimTime = 0.24;
+      if (used[0]) this.faceAngle(Math.atan2(used[0].y - this.player.y, used[0].x - this.player.x));
       this.sfx.play("mage");
     }
   },
@@ -2406,9 +3226,10 @@ Object.assign(RogueGame.prototype, {
       const enemy = hits[i].enemy;
       const damage = this.weaponDamage(weapon);
       this.damageEnemy(enemy, damage, weapon.color, "dart", { weapon });
+      if (weapon.level >= 3) this.damageEnemy(enemy, damage * 0.38, COLORS.gold, "dart", { weapon });
+      if (weapon.level >= 4) this.areaDamage(enemy.x, enemy.y, 28, damage * 0.24, weapon.color);
       if (this.weaponEnchantValue(weapon, "dartReturnDamage")) this.damageEnemy(enemy, damage * this.weaponEnchantValue(weapon, "dartReturnDamage"), COLORS.gold, "dart", { weapon });
-      enemy.marked = Math.max(enemy.marked, 4);
-      if (this.hasBlessing("curse")) enemy.cursed = Math.max(enemy.cursed, 5);
+      enemy.marked = Math.max(enemy.marked || 0, 4);
       if (this.hasSynergy("returningDance")) this.damageEnemy(enemy, weapon.damage * 0.45, COLORS.warrior, "knife");
       if (this.weaponEnchantValue(weapon, "dartRicochet") && Math.random() < this.weaponEnchantValue(weapon, "dartRicochet")) {
         const bounce = this.findTarget(130, [enemy], false);
@@ -2418,32 +3239,74 @@ Object.assign(RogueGame.prototype, {
         }
       }
     }
-    if (this.weaponHasEnchant(weapon, "dartTrail")) this.areaDamage(this.player.x + ux * weapon.range * 0.5, this.player.y + uy * weapon.range * 0.5, 34, this.weaponDamage(weapon, weapon.damage * 0.35), COLORS.xp);
+    if (weapon.level >= 5 && weapon.attackCount % 5 === 0) {
+      for (const offset of [-0.34, 0.34]) {
+        const a = angle + offset;
+        const ox = Math.cos(a);
+        const oy = Math.sin(a);
+        for (const enemy of this.active.enemies) {
+          const vx = enemy.x - this.player.x;
+          const vy = enemy.y - this.player.y;
+          const along = vx * ox + vy * oy;
+          const side = Math.abs(vx * oy - vy * ox);
+          if (along > 0 && along < weapon.range && side < 12 + enemy.radius) this.damageEnemy(enemy, this.weaponDamage(weapon, weapon.damage * 0.7), weapon.color, "dart", { weapon });
+        }
+        this.addEffect("dart", this.player.x + ox * weapon.range, this.player.y + oy * weapon.range, 0, weapon.color, a, this.player.x, this.player.y);
+        this.addEffect("dart", this.player.x, this.player.y, 0, weapon.color, a + Math.PI, this.player.x + ox * weapon.range, this.player.y + oy * weapon.range);
+      }
+    }
+    if (this.weaponHasEnchant(weapon, "dartTrail")) this.areaDamage(this.player.x + ux * weapon.range * 0.5, this.player.y + uy * weapon.range * 0.5, 34, this.weaponDamage(weapon, weapon.damage * 0.35), COLORS.echo);
     this.addEffect("dart", this.player.x + ux * weapon.range, this.player.y + uy * weapon.range, 0, weapon.color, angle, this.player.x, this.player.y);
     this.addEffect("dart", this.player.x, this.player.y, 0, weapon.color, angle + Math.PI, this.player.x + ux * weapon.range, this.player.y + uy * weapon.range);
     this.player.attackAnim = "attackDart";
     this.player.attackAnimTime = 0.24;
-    this.player.faceX = ux < -0.05 ? -1 : 1;
+    this.faceAngle(angle);
     if (hits.length) {
       this.recordWeaponHit("dart");
       this.sfx.play("archer");
     }
   },
+
+  castNeedle(weapon) {
+    const target = this.findTarget(weapon.range, [], true);
+    if (!target) return;
+    weapon.attackCount = (weapon.attackCount || 0) + 1;
+    const damage = this.weaponDamage(weapon);
+    const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+    this.damageEnemy(target, damage, weapon.color, "needle", { weapon });
+    this.addEffect("needle", target.x, target.y, 0, weapon.color, angle, this.player.x, this.player.y - 10);
+    if (weapon.level >= 2) {
+      target.needleMarks = (target.needleMarks || 0) + 1;
+      target.marked = Math.max(target.marked || 0, 4);
+      this.floatText(`针线 ${target.needleMarks}`, target.x, target.y - target.radius - 18, weapon.color, { size: 12, life: 0.52, vy: -24, kind: "combo" });
+    }
+    if (weapon.level >= 3 && (target.needleMarks || 0) >= 3) {
+      target.needleMarks = 0;
+      this.damageEnemy(target, this.weaponDamage(weapon, weapon.damage * 1.75), COLORS.gold, "needle", { weapon });
+      this.addEffect("ring", target.x, target.y, 44, weapon.color);
+      if (weapon.level >= 4) {
+        const bounce = this.findTarget(150, [target], false);
+        if (bounce) {
+          bounce.needleMarks = (bounce.needleMarks || 0) + 1;
+          bounce.marked = Math.max(bounce.marked || 0, 4);
+          this.damageEnemy(bounce, this.weaponDamage(weapon, weapon.damage * 0.55), weapon.color, "needle", { weapon });
+          this.addEffect("needle", bounce.x, bounce.y, 0, weapon.color, Math.atan2(bounce.y - target.y, bounce.x - target.x), target.x, target.y);
+        }
+      }
+      if (weapon.level >= 5) {
+        this.areaDamage(target.x, target.y, 76, this.weaponDamage(weapon, weapon.damage * 0.62), weapon.color);
+        this.addEffect("triBurst", target.x, target.y, 76, weapon.color);
+      }
+    }
+    this.player.attackAnim = "attackMagic";
+    this.player.attackAnimTime = 0.18;
+    this.faceAngle(angle);
+    this.recordWeaponHit("needle");
+    this.sfx.play("mage");
+  },
 });
 
 Object.assign(RogueGame.prototype, {
-  hasBlessing(id) {
-    return this.blessings.some((item) => item.id === id);
-  },
-
-  hasDivine(id) {
-    return this.divineBlessings.some((item) => item.id === id);
-  },
-
-  getDivine(id) {
-    return this.divineBlessings.find((item) => item.id === id);
-  },
-
   hasSynergy(id) {
     return this.synergies.some((item) => item.id === id);
   },
@@ -2453,6 +3316,7 @@ Object.assign(RogueGame.prototype, {
     let bestScore = range;
     for (const enemy of this.active.enemies) {
       if (exclude.includes(enemy)) continue;
+      if (!this.isEnemyVisible(enemy, 48)) continue;
       const d = distance(enemy, this.player);
       if (d > range) continue;
       const markBonus = preferMarked && (enemy.marked || enemy.cursed) ? 120 : 0;
@@ -2467,14 +3331,45 @@ Object.assign(RogueGame.prototype, {
 
   damageEnemy(enemy, damage, color, source = "generic", options = {}) {
     if (!enemy || enemy.hp <= 0) return;
+    if (enemy.invulnerable) {
+      if (!enemy.invulnTextTimer || this.floorTime - enemy.invulnTextTimer > 0.45) {
+        this.floatText("无敌", enemy.x, enemy.y - enemy.radius - 8, COLORS.echo, { size: 14, life: 0.38, vy: -20 });
+        enemy.invulnTextTimer = this.floorTime;
+      }
+      return;
+    }
     const pierce = clamp(options.armorPierce || 0, 0, 0.9);
     const finalDefense = Math.max(0, (enemy.defense || 0) * (1 - pierce));
     const finalDamage = Math.max(1, damage * (1 - finalDefense));
     enemy.hp -= finalDamage;
-    enemy.flash = 0.1;
-    this.hitStop = Math.max(this.hitStop, 0.004);
-    this.floatText(Math.round(finalDamage), enemy.x, enemy.y - enemy.radius - 5, color);
-    this.burst(enemy.x, enemy.y, color, 3);
+    const isMelee = source === "knife" || source === "fist";
+    const isHeavy = Boolean(options.heavy) || source === "" || finalDamage >= Math.max(28, enemy.maxHp * 0.08);
+    const freezeBase = isHeavy ? random(0.08, 0.12) : random(0.04, 0.06);
+    const freezeScale = enemy.rank === "boss" ? 0.34 : enemy.rank && enemy.rank !== "small" ? 0.72 : 1;
+    enemy.freeze = Math.max(enemy.freeze || 0, freezeBase * freezeScale);
+    enemy.flash = isMelee ? 0.16 : 0.13;
+    const dx = enemy.x - this.player.x;
+    const dy = enemy.y - this.player.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const knockScale = enemy.rank === "boss" ? 0.25 : enemy.rank && enemy.rank !== "small" ? 0.45 : 1;
+    const knock = (source === "knife" ? 122 : source === "fist" ? 116 : source === "dart" ? 58 : source === "needle" ? 28 : 38) * knockScale;
+    enemy.knockX = (enemy.knockX || 0) + (dx / len) * knock;
+    enemy.knockY = (enemy.knockY || 0) + (dy / len) * knock;
+    this.hitStop = Math.max(this.hitStop, (isHeavy ? 0.018 : 0.01) * freezeScale);
+    this.shake = Math.max(this.shake, isHeavy ? 3.4 * freezeScale : isMelee ? 2.2 * freezeScale : 1.2 * freezeScale);
+    const now = performance.now();
+    if (navigator.vibrate && this.profile.settings.vibrationEnabled && now - (this.lastHitVibrateAt || 0) > 44) {
+      navigator.vibrate(isHeavy ? 18 : 8);
+      this.lastHitVibrateAt = now;
+    }
+    this.floatText(Math.round(finalDamage), enemy.x, enemy.y - enemy.radius - 5, color, {
+      size: enemy.rank && enemy.rank !== "small" ? 18 : 15,
+      life: 0.7,
+      vy: -38,
+    });
+    this.registerComboHit(enemy, color);
+    this.addHitFeedback(enemy, color, source);
+    this.burst(enemy.x, enemy.y, color, isMelee ? 5 : 3);
     const weapon = options.weapon;
     if (weapon && this.weaponEnchantValue(weapon, "riftPulseChance") && Math.random() < this.weaponEnchantValue(weapon, "riftPulseChance")) {
       this.areaDamage(enemy.x, enemy.y, 52, finalDamage * 0.34, COLORS.mage);
@@ -2494,9 +3389,10 @@ Object.assign(RogueGame.prototype, {
   },
 
   recordWeaponHit(weaponId) {
-    if (!["knife", "magicMissile", "dart"].includes(weaponId)) return;
+    if (!ROGUE_WEAPONS[weaponId]) return;
     this.lastHits[weaponId] = this.floorTime;
-    const ready = ["knife", "magicMissile", "dart"].every((id) => this.lastHits[id] !== undefined && this.floorTime - this.lastHits[id] <= 3);
+    const triad = ROGUE_SYNERGIES.triBurst.weapons;
+    const ready = triad.every((id) => this.lastHits[id] !== undefined && this.floorTime - this.lastHits[id] <= 3);
     if (ready && this.hasSynergy("triBurst") && this.triBurstCooldown <= 0) {
       this.triBurstCooldown = 5.5;
       this.areaDamage(this.player.x, this.player.y, 118, 58 + this.level * 4, COLORS.gold);
@@ -2528,8 +3424,27 @@ Object.assign(RogueGame.prototype, {
       enemy.attackTimer -= dt;
       enemy.shootTimer -= dt;
       enemy.morph += dt * (6 + Math.abs(enemy.spin || 0) * 2);
+      enemy.freeze = Math.max(0, (enemy.freeze || 0) - dt);
+      if (enemy.freeze > 0) {
+        if (enemy.hp <= 0) this.killEnemy(i);
+        continue;
+      }
+      if (Math.abs(enemy.knockX || 0) + Math.abs(enemy.knockY || 0) > 0.1) {
+        enemy.x += (enemy.knockX || 0) * dt;
+        enemy.y += (enemy.knockY || 0) * dt;
+        const damp = Math.pow(0.018, dt);
+        enemy.knockX *= damp;
+        enemy.knockY *= damp;
+      }
       if (enemy.bleed > 0) enemy.hp -= dt * (2 + this.level * 0.45);
       if (enemy.burn > 0) enemy.hp -= dt * (5 + this.level * 0.6);
+      if (enemy.rank === "boss") {
+        this.updateBoss(enemy, dt);
+        enemy.x = clamp(enemy.x, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
+        enemy.y = clamp(enemy.y, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
+        if (enemy.hp <= 0) this.killEnemy(i);
+        continue;
+      }
       const dx = this.player.x - enemy.x;
       const dy = this.player.y - enemy.y;
       const len = Math.hypot(dx, dy) || 1;
@@ -2537,6 +3452,8 @@ Object.assign(RogueGame.prototype, {
       const speed = enemy.speed * (enemy.slow > 0 ? 0.55 : 1);
       enemy.x += (dx / len) * speed * keepAway * dt;
       enemy.y += (dy / len) * speed * keepAway * dt;
+      enemy.x = clamp(enemy.x, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
+      enemy.y = clamp(enemy.y, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
       if ((enemy.kind === "shooter" || enemy.rank === "boss" || enemy.rank === "lieutenant") && enemy.shootTimer <= 0 && this.floor >= 4) {
         enemy.shootTimer = enemy.rank === "boss" ? 1.6 : random(2.1, 3.2);
         this.fireEnemyShot(enemy);
@@ -2547,6 +3464,312 @@ Object.assign(RogueGame.prototype, {
       }
       if (enemy.hp <= 0) this.killEnemy(i);
     }
+  },
+
+  updateBoss(enemy, dt) {
+    enemy.bossTimer -= dt;
+    const toPlayer = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+    const moveTowardPlayer = (speedScale = 0.35) => {
+      const dx = this.player.x - enemy.x;
+      const dy = this.player.y - enemy.y;
+      const len = Math.hypot(dx, dy) || 1;
+      enemy.x += (dx / len) * enemy.speed * speedScale * dt;
+      enemy.y += (dy / len) * enemy.speed * speedScale * dt;
+    };
+
+    if (!enemy.bossHalfPhaseDone && enemy.hp <= enemy.maxHp * 0.5) {
+      this.startBossSplitPhase(enemy);
+      return;
+    }
+
+    if (!enemy.bossState || enemy.bossState === "idle") {
+      moveTowardPlayer(0.42);
+      if (enemy.bossTimer <= 0) {
+        const abilityCount = enemy.bossHalfPhaseDone ? 5 : 4;
+        const ability = Math.floor(Math.random() * abilityCount);
+        enemy.bossAbilityIndex += 1;
+        enemy.bossAngle = toPlayer;
+        if (ability === 0) {
+          enemy.bossState = "dashWarn";
+          enemy.bossTimer = 0.55;
+        } else if (ability === 1) {
+          enemy.bossState = "spinBarrage";
+          enemy.bossTimer = 3;
+          enemy.bossShotTimer = 0;
+        } else if (ability === 2) {
+          enemy.x = clamp(this.player.x, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
+          enemy.y = clamp((this.camera?.y || 0) + 110, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
+          enemy.bossAngle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+          enemy.bossState = "waveCharge";
+          enemy.bossTimer = 3;
+        } else if (ability === 3) {
+          enemy.bossState = "lockAim";
+          enemy.bossTimer = 3;
+          enemy.bossLockTarget = { x: this.player.x, y: this.player.y };
+        } else {
+          this.startBossLaserSequence(enemy);
+        }
+      }
+      return;
+    }
+
+    if (enemy.bossState === "splitInvuln") {
+      enemy.invulnerable = true;
+      enemy.bossShotTimer -= dt;
+      if (enemy.bossShotTimer <= 0) {
+        enemy.bossShotTimer = 2;
+        for (let i = 0; i < 5; i += 1) this.spawnBossAoe(enemy);
+      }
+      if (!this.active.enemies.some((item) => item.phaseMinion && item.ownerBoss === enemy)) {
+        enemy.invulnerable = false;
+        enemy.bossState = "idle";
+        enemy.bossTimer = 0.75;
+        this.say("Boss 的无敌状态解除了。");
+      }
+      return;
+    }
+
+    if (enemy.bossState === "lockAim") {
+      enemy.bossLockTarget = { x: this.player.x, y: this.player.y };
+      if (enemy.bossTimer <= 0) {
+        this.fireBossMissile(enemy, enemy.bossLockTarget);
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.1;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "laserWarn") {
+      enemy.bossShotTimer -= dt;
+      if (enemy.bossShotTimer <= 0) {
+        enemy.bossShotTimer = 0.18;
+        enemy.bossLaserIndex += 1;
+        if (enemy.bossLaserIndex >= enemy.bossLaserLines.length) {
+          enemy.bossLaserIndex = 0;
+          enemy.bossState = "laserDash";
+          enemy.bossTimer = 0.18;
+        }
+      }
+      return;
+    }
+
+    if (enemy.bossState === "laserDash") {
+      const line = enemy.bossLaserLines[enemy.bossLaserIndex];
+      if (line) {
+        enemy.bossAngle = line.angle;
+        enemy.x = clamp(enemy.x + Math.cos(line.angle) * 720 * dt, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
+        enemy.y = clamp(enemy.y + Math.sin(line.angle) * 720 * dt, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
+        if (this.playerInBossWave(enemy, 34, 1280)) this.hurtPlayer(enemy.attack * 1.15);
+      }
+      if (enemy.bossTimer <= 0) {
+        enemy.bossLaserIndex += 1;
+        enemy.bossTimer = 0.18;
+        if (enemy.bossLaserIndex >= enemy.bossLaserLines.length) {
+          enemy.bossLaserLines = [];
+          enemy.bossState = "idle";
+          enemy.bossTimer = 1.25;
+        }
+      }
+      return;
+    }
+
+    if (enemy.bossState === "dashWarn") {
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "dashMove";
+        enemy.bossTimer = 0.34;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "dashMove") {
+      enemy.x += Math.cos(enemy.bossAngle) * 620 * dt;
+      enemy.y += Math.sin(enemy.bossAngle) * 620 * dt;
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "quakeWarn";
+        enemy.bossTimer = 2;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "quakeWarn") {
+      if (enemy.bossTimer <= 0) {
+        if (distance(enemy, this.player) <= 118 + this.player.radius) this.hurtPlayer(enemy.attack * 1.35);
+        this.addEffect("triBurst", enemy.x, enemy.y, 118, COLORS.danger);
+        this.shake = Math.max(this.shake, 7);
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.1;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "spinBarrage") {
+      enemy.bossAngle += dt * 5.2;
+      enemy.bossShotTimer -= dt;
+      if (enemy.bossShotTimer <= 0) {
+        enemy.bossShotTimer = 0.12;
+        this.fireBossShot(enemy, enemy.bossAngle);
+        this.fireBossShot(enemy, enemy.bossAngle + Math.PI);
+      }
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.2;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "waveCharge") {
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "waveFire";
+        enemy.bossTimer = 1.35;
+        enemy.bossWaveDamageTimer = 0;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "waveFire") {
+      enemy.bossWaveDamageTimer -= dt;
+      if (enemy.bossWaveDamageTimer <= 0) {
+        enemy.bossWaveDamageTimer = 0.24;
+        if (this.playerInBossWave(enemy, 112, 1280)) this.hurtPlayer(enemy.attack * 1.18);
+      }
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "idle";
+        enemy.bossTimer = 1.35;
+      }
+    }
+  },
+
+  playerInBossWave(enemy, width = 112, length = 1280) {
+    const dx = this.player.x - enemy.x;
+    const dy = this.player.y - enemy.y;
+    const ux = Math.cos(enemy.bossAngle || 0);
+    const uy = Math.sin(enemy.bossAngle || 0);
+    const along = dx * ux + dy * uy;
+    const side = Math.abs(dx * uy - dy * ux);
+    return along > -18 && along < length && side < width / 2 + this.player.radius;
+  },
+
+  startBossSplitPhase(enemy) {
+    enemy.bossHalfPhaseDone = true;
+    enemy.invulnerable = true;
+    enemy.bossState = "splitInvuln";
+    enemy.bossTimer = 99;
+    enemy.bossShotTimer = 0.65;
+    enemy.knockX = 0;
+    enemy.knockY = 0;
+    this.say("Boss 半血分裂，小怪全灭前本体无敌。");
+    for (let i = 0; i < 10; i += 1) {
+      const minion = this.enemyPool.get();
+      const angle = (i / 10) * Math.PI * 2 + random(-0.18, 0.18);
+      const radius = random(90, 210);
+      Object.assign(minion, {
+        active: true,
+        kind: "bossSplit",
+        rank: "small",
+        label: "",
+        hp: 28 + this.floor * 3,
+        maxHp: 28 + this.floor * 3,
+        speed: 68,
+        radius: 10,
+        attack: 0,
+        defense: 0,
+        coins: 0,
+        color: i % 2 ? COLORS.danger : COLORS.echo,
+        shape: i % 2 ? "diamond" : "box",
+        x: clamp(enemy.x + Math.cos(angle) * radius, WORLD.minX + 16, WORLD.maxX - 16),
+        y: clamp(enemy.y + Math.sin(angle) * radius, WORLD.minY + 16, WORLD.maxY - 16),
+        attackTimer: 0.9,
+        shootTimer: 99,
+        flash: 0,
+        knockX: 0,
+        knockY: 0,
+        slow: 0,
+        bleed: 0,
+        burn: 0,
+        cursed: 0,
+        marked: 0,
+        pulse: random(0, Math.PI * 2),
+        morph: random(0, Math.PI * 2),
+        spin: random(-1.2, 1.2),
+        phaseMinion: true,
+        ownerBoss: enemy,
+      });
+      this.active.enemies.push(minion);
+    }
+  },
+
+  startBossLaserSequence(enemy) {
+    enemy.bossState = "laserWarn";
+    enemy.bossLaserIndex = 0;
+    enemy.bossShotTimer = 0.2;
+    enemy.bossLaserLines = [];
+    const base = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+    for (let i = 0; i < 10; i += 1) {
+      enemy.bossLaserLines.push({ angle: base + random(-1.25, 1.25) + (i - 4.5) * 0.05 });
+    }
+  },
+
+  spawnBossAoe(enemy) {
+    if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
+    const effect = this.effectPool.get();
+    Object.assign(effect, {
+      active: true,
+      type: "bossAoe",
+      x: random(WORLD.minX + 70, WORLD.maxX - 70),
+      y: random(WORLD.minY + 90, WORLD.maxY - 90),
+      radius: 42,
+      color: COLORS.danger,
+      damage: enemy.attack * 1.05,
+      life: 1.15,
+      maxLife: 1.15,
+      didDamage: false,
+      friendlyAttack: false,
+    });
+    this.active.effects.push(effect);
+  },
+
+  fireBossMissile(enemy, target) {
+    const dx = target.x - enemy.x;
+    const dy = target.y - enemy.y;
+    const len = Math.hypot(dx, dy) || 1;
+    if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
+    const shot = this.effectPool.get();
+    Object.assign(shot, {
+      active: true,
+      type: "bossMissile",
+      x: enemy.x,
+      y: enemy.y,
+      vx: (dx / len) * 260,
+      vy: (dy / len) * 260,
+      radius: 8,
+      color: COLORS.danger,
+      damage: enemy.attack * 1.15,
+      life: 3.4,
+      maxLife: 3.4,
+      friendlyAttack: false,
+    });
+    this.active.effects.push(shot);
+  },
+
+  fireBossShot(enemy, angle) {
+    if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
+    const shot = this.effectPool.get();
+    Object.assign(shot, {
+      active: true,
+      type: "enemyShot",
+      x: enemy.x,
+      y: enemy.y,
+      vx: Math.cos(angle) * 190,
+      vy: Math.sin(angle) * 190,
+      radius: 6,
+      color: COLORS.danger,
+      damage: enemy.attack * 0.9,
+      life: 4,
+      maxLife: 4,
+      bossBullet: true,
+      friendlyAttack: false,
+    });
+    this.active.effects.push(shot);
   },
 
   fireEnemyShot(enemy) {
@@ -2567,6 +3790,8 @@ Object.assign(RogueGame.prototype, {
       damage: enemy.attack * 1.55,
       life: 4,
       maxLife: 4,
+      bossBullet: false,
+      friendlyAttack: false,
     });
     this.active.effects.push(shot);
   },
@@ -2580,16 +3805,12 @@ Object.assign(RogueGame.prototype, {
       this.reviveCurrency += enemy.rank === "boss" ? 2 : 1;
       this.runStats.rewardMultiplier += enemy.rank === "boss" ? 0.12 : 0.06;
     }
-    if (enemy.bleed > 0 && this.hasBlessing("blood")) this.areaDamage(enemy.x, enemy.y, 38, 22 + this.level * 2, COLORS.danger);
-    if (enemy.cursed > 0 && this.hasBlessing("curse")) this.spreadCurse(enemy);
+    if (enemy.cursed > 0) this.spreadCurse(enemy);
     this.onEnemyKilled(enemy);
-    this.spawnDrop(enemy.x + random(-8, 8), enemy.y + random(-8, 8), "exp", enemy.xp, 5);
     this.rollCoinDrops(enemy);
     if (enemy.rank === "boss") {
-      this.awaitingBossRelic = true;
-      this.bossRelicFloor = this.floor;
-      this.spawnDrop(enemy.x, enemy.y, "relic", 1, 12);
-      this.say("Boss 掉下了圣遗物。过去捡，别装矜持。");
+      this.bossRewardPending = true;
+      this.say("Boss 的武器回声浮现。");
     }
     this.burst(enemy.x, enemy.y, enemy.color, enemy.rank === "small" ? 8 : 24);
     this.releaseActive(this.active.enemies, index, this.enemyPool);
@@ -2613,16 +3834,12 @@ Object.assign(RogueGame.prototype, {
     if (this.player.invuln > 0) return;
     if (this.player.shield > 0) {
       this.player.shield = 0;
-      this.addEffect("ring", this.player.x, this.player.y, 42, COLORS.xp);
+      this.addEffect("ring", this.player.x, this.player.y, 42, COLORS.echo);
       this.player.invuln = 0.35 + this.upgradeStats.hurtIframes;
       return;
     }
-    if (this.items.some((item) => item.id === "wristguard") && Math.random() < 0.18) {
-      this.addEffect("ring", this.player.x, this.player.y, 38, COLORS.gold);
-      this.say("破旧护腕格挡了伤害。");
-      return;
-    }
-    this.hp -= Math.max(1, amount);
+    this.hp -= HIT_HEART_DAMAGE;
+    this.floatText("-半颗", this.player.x, this.player.y - 38, COLORS.danger, { size: 14, life: 0.62, vy: -26 });
     this.player.flash = 0.18;
     this.player.invuln = 0.55 + this.upgradeStats.hurtIframes;
     this.player.hurtSpeedTimer = this.upgradeStats.hurtSpeedBoost > 0 ? 2.2 : 0;
@@ -2633,8 +3850,6 @@ Object.assign(RogueGame.prototype, {
   },
 
   onEnemyKilled(enemy) {
-    if (this.hasDivine("warSight")) this.killBuffTimer = 3.2;
-    if (this.hasDivine("bloodEncore")) this.killHasteStacks = Math.min(8, this.killHasteStacks + 1);
     const knife = this.weapons.find((weapon) => weapon.id === "knife");
     if (knife?.killDamageBuff) knife.killBuffTimer = 3.6;
   },
@@ -2643,7 +3858,10 @@ Object.assign(RogueGame.prototype, {
     const coinMult = this.currentFloorModifiers.coinMult || 1;
     if (enemy.rank === "boss") {
       const range = ECONOMY.bossCoinAmount?.[this.floor] || ECONOMY.bossCoinAmount?.default || [40, 70];
-      this.spawnDrop(enemy.x + random(-18, 18), enemy.y + random(-18, 18), "coin", Math.ceil(randomInt(range[0], range[1]) * coinMult), 7);
+      const gain = Math.ceil(randomInt(range[0], range[1]) * coinMult);
+      this.coins += gain;
+      this.runStats.coinsEarned += gain;
+      this.floatText(`Boss 金币 +${gain}`, enemy.x, enemy.y - enemy.radius - 28, COLORS.gold, { size: 18, life: 0.8, vy: -28 });
       return;
     }
     if (enemy.rank && enemy.rank !== "small") {
@@ -2653,8 +3871,7 @@ Object.assign(RogueGame.prototype, {
     }
     const chanceRange = ECONOMY.normalCoinChance || { min: 0.12, max: 0.18 };
     const chance = clamp(chanceRange.min + this.floor * 0.008, chanceRange.min, chanceRange.max);
-    const extraChance = this.hasDivine("coinEcho") ? 0.18 : 0;
-    if (Math.random() < chance + extraChance) {
+    if (Math.random() < chance) {
       const range = ECONOMY.normalCoinAmount || [1, 2];
       this.spawnDrop(enemy.x + random(-8, 8), enemy.y + random(-8, 8), "coin", Math.ceil(randomInt(range[0], range[1]) * coinMult), 6);
     }
@@ -2669,8 +3886,6 @@ Object.assign(RogueGame.prototype, {
     const color = {
       coin: COLORS.gold,
       coinBag: COLORS.gold,
-      exp: COLORS.xp,
-      relic: "#f7e7ff",
       material: COLORS.fire,
     }[kind] || COLORS.gold;
     Object.assign(drop, {
@@ -2711,9 +3926,8 @@ Object.assign(RogueGame.prototype, {
   },
 
   pickupRange(drop = null) {
-    const base = drop?.kind === "relic" ? 104 : 76;
-    const relicBonus = this.items.some((item) => item.id === "magneticCord") ? 58 : 0;
-    return (base + relicBonus) * (1 + this.upgradeStats.pickupRangeMult);
+    const base = 76;
+    return base * (1 + this.upgradeStats.pickupRangeMult);
   },
 
   pickupSpeed() {
@@ -2721,21 +3935,6 @@ Object.assign(RogueGame.prototype, {
   },
 
   collectDrop(drop) {
-    if (drop.kind === "exp") {
-      this.addXp(drop.value);
-      this.player.absorb = 0.7;
-      this.sfx.play("xp");
-      this.floatText(`经验 +${Math.round(drop.value)}`, this.player.x, this.player.y - 36, COLORS.xp);
-      return;
-    }
-    if (drop.kind === "relic") {
-      this.awaitingBossRelic = false;
-      this.player.absorb = 1;
-      this.addEffect("absorb", this.player.x, this.player.y, 92, "#f7e7ff");
-      this.openDivineBlessingReward(drop.value);
-      this.sfx.play("level");
-      return;
-    }
     this.coins += drop.value;
     this.runStats.coinsEarned += drop.value;
     this.player.absorb = 0.45;
@@ -2743,22 +3942,9 @@ Object.assign(RogueGame.prototype, {
     this.sfx.play("coin");
   },
 
-  addXp(value) {
-    this.xp += value * (1 + this.upgradeStats.xpGainMult);
-    while (this.xp >= this.nextXp) {
-      this.xp -= this.nextXp;
-      this.level += 1;
-      this.nextXp = Math.floor(this.nextXp * 1.28 + 22);
-      this.pendingUpgrades += 1;
-      this.sfx.play("level");
-      if (this.hasDivine("unstableCore")) this.areaDamage(this.player.x, this.player.y, 92, 36 + this.level * 4, COLORS.mage);
-    }
-    this.tryOpenPendingChoice();
-  },
-
   checkFloorClear() {
     const allSpawned = this.floorSpawned >= this.floorSpawnLimit;
-    if (this.mode === "combat" && allSpawned && this.specialDefeated && !this.awaitingBossRelic && this.active.enemies.length === 0) this.finishFloor();
+    if (this.mode === "combat" && allSpawned && this.specialDefeated && this.active.enemies.length === 0) this.finishFloor();
   },
 
   burst(x, y, color, count) {
@@ -2780,52 +3966,85 @@ Object.assign(RogueGame.prototype, {
     }
   },
 
-  floatText(text, x, y, color) {
+  floatText(text, x, y, color, options = {}) {
     if (this.active.texts.length > 52) return;
     const item = this.textPool.get();
-    Object.assign(item, { active: true, text, x: x + random(-4, 4), y, color, life: 0.5 });
+    const life = options.life || 0.62;
+    Object.assign(item, {
+      active: true,
+      text,
+      x: x + random(-4, 4),
+      y,
+      vx: options.vx ?? random(-8, 8),
+      vy: options.vy ?? -34,
+      color,
+      size: options.size || 15,
+      kind: options.kind || "damage",
+      life,
+      maxLife: life,
+    });
     this.active.texts.push(item);
+  },
+
+  registerComboHit(enemy, color) {
+    if (this.comboTimer <= 0) this.comboCount = 0;
+    this.comboCount += 1;
+    this.comboTimer = 1.35;
+    if (this.comboCount < 3) return;
+    const shouldShow = this.comboCount === 3 || this.comboCount % 5 === 0 || this.comboTextCooldown <= 0;
+    if (!shouldShow) return;
+    this.comboTextCooldown = 0.18;
+    this.floatText(`${this.comboCount} COMBO`, enemy.x, enemy.y - enemy.radius - 30, COLORS.gold, {
+      kind: "combo",
+      size: this.comboCount >= 20 ? 22 : 18,
+      life: 0.58,
+      vy: -22,
+      vx: 0,
+    });
   },
 });
 
 Object.assign(RogueGame.prototype, {
   tryOpenPendingChoice() {
-    if (this.mode !== "combat" || this.pendingUpgrades <= 0) return;
-    this.openUpgradeCards();
+    return false;
   },
 
-  openUpgradeCards() {
+  openFloorUpgrade(floor) {
+    this.clearAllModals();
     this.mode = "upgrade";
+    this.pendingFloorStart = floor;
+    this.resetSingleRefresh("upgrade");
     this.currentUpgradeChoices = this.rollUpgradeChoices();
-    this.upgradeRefreshPrice = Math.min(ECONOMY.levelRefreshCap || 15, (ECONOMY.levelRefreshBase || 5) + this.floor);
-    this.upgradeRefreshed = false;
-    this.freeUpgradeRerolls = this.hasDivine("fateReroll") ? 1 : 0;
     this.renderUpgradeCards();
     ui.levelUp.classList.remove("hidden");
     this.sfx.play("deal");
     this.updateUi();
   },
 
+  openUpgradeCards() {
+    this.openFloorUpgrade(this.floor || 1);
+  },
+
   rollUpgradeChoices() {
-    const pool = PLAYER_UPGRADES.map((upgrade) => ({ ...upgrade }));
-    if (this.hasDivine("rareFavor")) {
-      pool.push(...PLAYER_UPGRADES.filter((upgrade) => upgrade.rarity !== "common").map((upgrade) => ({ ...upgrade })));
-    }
+    const currentWeaponId = this.primaryWeapon()?.id || this.startingWeapon;
+    const pool = PLAYER_UPGRADES
+      .filter((upgrade) => !upgrade.weaponAffinity || upgrade.weaponAffinity === currentWeaponId)
+      .map((upgrade) => ({ ...upgrade }));
     return shuffle(pool).slice(0, 3).map((choice) => ({
       ...choice,
       title: choice.name,
-      type: `【${choice.type}】`,
-      text: `${choice.stat}\n${choice.text}`,
+      type: "裂隙祝福",
+      text: choice.stat,
       apply: () => this.applyPlayerUpgrade(choice),
     }));
   },
 
   renderUpgradeCards() {
-    ui.upgradeTitle.textContent = "人物变强了";
-    if (ui.upgradeNote) ui.upgradeNote.textContent = this.freeUpgradeRerolls > 0 ? "命运允许你免费嫌弃一次" : "经验升级只强化人物";
+    ui.upgradeTitle.textContent = "裂隙祝福";
+    if (ui.upgradeNote) ui.upgradeNote.textContent = "选择1项强化";
     if (ui.refreshUpgrades) {
-      ui.refreshUpgrades.textContent = this.freeUpgradeRerolls > 0 ? "命运重掷" : this.upgradeRefreshed ? "已刷新" : `刷新 ${this.upgradeRefreshPrice}金`;
-      ui.refreshUpgrades.disabled = this.upgradeRefreshed || (this.freeUpgradeRerolls <= 0 && this.coins < this.upgradeRefreshPrice);
+      ui.refreshUpgrades.textContent = `刷新 ${this.currentRefreshPrice || SINGLE_REFRESH_BASE}金`;
+      ui.refreshUpgrades.disabled = false;
     }
     ui.upgradeItems.innerHTML = "";
     ui.upgradeItems.className = "choice-grid card-fan";
@@ -2833,10 +4052,10 @@ Object.assign(RogueGame.prototype, {
       const button = document.createElement("button");
       button.className = `choice-card rarity-${choice.rarity || "common"}`;
       button.type = "button";
-      button.style.setProperty("--card-color", choice.color || COLORS.xp);
+      button.style.setProperty("--card-color", rarityColor(choice.rarity));
       button.style.setProperty("--delay", `${index * 80}ms`);
       button.style.setProperty("--r", `${(index - 1) * 8}deg`);
-      button.innerHTML = `<small>${choice.type} · ${RARITIES[choice.rarity || "common"].label}</small><strong>${choice.title}</strong><span>${choice.text}</span>`;
+      button.innerHTML = `<small>${RARITIES[choice.rarity || "common"].label}</small><strong>${choice.title}</strong><span>${choice.text}</span>`;
       button.addEventListener("click", () => this.chooseUpgrade(choice));
       ui.upgradeItems.appendChild(button);
     });
@@ -2844,49 +4063,30 @@ Object.assign(RogueGame.prototype, {
 
   refreshUpgradeChoices() {
     if (this.mode !== "upgrade") return;
-    if (this.upgradeRefreshed && this.freeUpgradeRerolls <= 0) {
-      this.say("这次升级只能改命一次。");
-      this.sfx.play("fail");
-      return;
-    }
-    if (this.freeUpgradeRerolls > 0) {
-      this.freeUpgradeRerolls -= 1;
-      this.upgradeRefreshed = true;
-      this.currentUpgradeChoices = this.rollUpgradeChoices();
-      this.renderUpgradeCards();
-      this.sfx.play("refresh");
-      return;
-    }
-    if (this.coins < this.upgradeRefreshPrice) {
-      this.say(`金币不足，刷新需要 ${this.upgradeRefreshPrice} 金。`);
-      this.sfx.play("fail");
-      return;
-    }
-    this.coins -= this.upgradeRefreshPrice;
-    this.upgradeRefreshed = true;
+    if (!this.spendSingleRefresh("刷新祝福")) return;
     this.currentUpgradeChoices = this.rollUpgradeChoices();
     this.renderUpgradeCards();
-    this.sfx.play("refresh");
     this.updateUi();
   },
 
   chooseUpgrade(choice) {
     if (this.mode !== "upgrade") return;
     choice.apply(this);
-    this.pendingUpgrades = Math.max(0, this.pendingUpgrades - 1);
-    this.addEffect("absorb", this.player.x, this.player.y, 62, choice.color || COLORS.xp);
+    this.level = Math.max(1, this.playerUpgrades.length);
+    this.addEffect("absorb", this.player.x, this.player.y, 62, rarityColor(choice.rarity));
     this.sfx.play("upgradePick");
     this.clearLayer(ui.levelUp);
-    this.mode = "combat";
-    this.upgradeRefreshPrice = Math.min(ECONOMY.levelRefreshCap || 15, (ECONOMY.levelRefreshBase || 5) + this.floor);
     this.recalculateSynergies();
-    this.tryOpenPendingChoice();
+    const nextFloor = this.pendingFloorStart;
+    this.pendingFloorStart = null;
+    if (nextFloor) this.startFloor(nextFloor, { skipPreUpgrade: true });
+    else this.mode = "combat";
     this.updateUi();
   },
 
   applyPlayerUpgrade(choice) {
     const effect = choice.effect || {};
-    this.playerUpgrades.push({ id: choice.id, name: choice.name, type: choice.type, stat: choice.stat });
+    this.playerUpgrades.push({ id: choice.id, name: choice.name, type: "裂隙祝福", stat: choice.stat });
     if (effect.maxHp) {
       this.maxHp += effect.maxHp;
       this.hp = Math.min(this.maxHp, this.hp + (effect.heal || effect.maxHp));
@@ -2900,20 +4100,13 @@ Object.assign(RogueGame.prototype, {
     if (effect.speedMult) this.upgradeStats.speedMult += effect.speedMult;
     if (effect.pickupRangeMult) this.upgradeStats.pickupRangeMult += effect.pickupRangeMult;
     if (effect.pickupSpeedMult) this.upgradeStats.pickupSpeedMult += effect.pickupSpeedMult;
-    if (effect.xpGainMult) this.upgradeStats.xpGainMult += effect.xpGainMult;
     if (effect.damageMult) this.upgradeStats.damageMult += effect.damageMult;
     if (effect.attackSpeedMult) this.upgradeStats.attackSpeedMult += effect.attackSpeedMult;
     if (effect.critChance) this.upgradeStats.critChance += effect.critChance;
     if (effect.hurtIframes) this.upgradeStats.hurtIframes += effect.hurtIframes;
     if (effect.hurtSpeedBoost) this.upgradeStats.hurtSpeedBoost += effect.hurtSpeedBoost;
     if (effect.calmSpeed) this.upgradeStats.calmSpeed += effect.calmSpeed;
-    this.say(`${choice.name}：${choice.stat}`);
-  },
-
-  addRelic(relic) {
-    if (!this.items.some((item) => item.id === relic.id)) this.items.push(relic);
-    this.say(`获得遗物：${relic.name}`);
-    this.sfx.play("confirm");
+    this.say(`裂隙祝福：${choice.name}`);
   },
 
   openShrineEvent() {
@@ -2925,7 +4118,7 @@ Object.assign(RogueGame.prototype, {
     };
     this.shopOffers = [
       ...shuffle(SHRINE_EVENTS.map((event) => ({ ...event, title: event.name, type: `【${event.tag}】`, text: `${event.cost}，${event.reward}。\n${event.text}`, apply: () => this.applyShrineEvent(event) }))).slice(0, 3),
-      { id: "leaveShrine", title: "离开神龛", type: "【离开】", rarity: "common", color: COLORS.xp, text: "今天先不把命交出去。", apply: () => this.completeSafeEvent("你离开了神龛。") },
+      { id: "leaveShrine", title: "离开神龛", type: "【离开】", rarity: "common", color: rarityColor("common"), text: "今天先不把命交出去。", apply: () => this.completeSafeEvent("你离开了神龛。") },
     ];
     this.renderIntermission();
     ui.shop.classList.remove("hidden");
@@ -2934,7 +4127,7 @@ Object.assign(RogueGame.prototype, {
 
   applyShrineEvent(event) {
     if (event.price && this.coins < event.price) {
-      this.showShopMessage("金币不足，神明对赊账没有兴趣。");
+      this.showShopMessage("金币不足，裂隙交易不接受赊账。");
       this.sfx.play("fail");
       return;
     }
@@ -2961,18 +4154,19 @@ Object.assign(RogueGame.prototype, {
       const pick = shuffle(PLAYER_UPGRADES.filter((upgrade) => upgrade.rarity !== "common").map((upgrade) => ({ ...upgrade }))).shift() || PLAYER_UPGRADES[0];
       this.applyPlayerUpgrade(pick);
     }
-    this.addEffect("absorb", this.player.x, this.player.y, 78, event.color || COLORS.mage);
+    this.addEffect("absorb", this.player.x, this.player.y, 78, rarityColor(event.rarity));
     this.completeSafeEvent(`${event.name} 已生效。`);
   },
 
   openBlacksmithEvent() {
     this.mode = "blacksmith";
-    this.blacksmithRefreshIndex = 0;
+    this.resetSingleRefresh("blacksmith");
     this.blacksmithLockedIndex = -1;
+    this.pendingEnchantChoice = null;
     this.currentRoom = {
       id: "blacksmith",
       title: "裂隙铁匠",
-      copy: "他不关心你活不活，只关心武器还能不能更狠。",
+      copy: "为当前武器附魔。",
     };
     this.shopOffers = this.rollBlacksmithOffers();
     this.renderIntermission();
@@ -2985,31 +4179,49 @@ Object.assign(RogueGame.prototype, {
     if (!weapon) return [];
     const generic = WEAPON_ENCHANTMENTS.generic || [];
     const specific = WEAPON_ENCHANTMENTS[weapon.id] || [];
-    const pool = [...generic, ...specific].map((item) => ({ ...item }));
-    const offers = shuffle(pool).slice(0, 3).map((item) => ({
+    const pool = [...generic, ...specific].filter((item) => !weapon.enchantments?.some((owned) => owned.id === item.id)).map((item) => ({ ...item }));
+    const source = pool.length ? pool : [...generic, ...specific].map((item) => ({ ...item }));
+    return shuffle(source).slice(0, 3).map((item) => this.formatBlacksmithOffer(item));
+  },
+
+  rollBlacksmithOffer() {
+    return this.rollBlacksmithOffers()[0] || null;
+  },
+
+  formatBlacksmithOffer(item) {
+    if (!item) return null;
+    return {
       ...item,
       title: item.name,
-      type: `【${item.tag}】`,
-      text: `${item.stat}\n${item.text}`,
-      apply: () => this.applyWeaponEnchant(item),
-    }));
-    if (weapon.enchantments?.length) {
-      const target = weapon.enchantments[0];
-      offers.push({
-        id: "upgradeExistingEnchant",
-        title: `强化：${target.name}`,
-        type: "【金币强化】",
-        rarity: target.rarity || "elite",
-        color: target.color || COLORS.fire,
-        price: (ECONOMY.enchantUpgradeBase || 30) + (target.level || 1) * (ECONOMY.enchantUpgradeStep || 20),
-        text: `已有附魔等级 +1。\n铁匠又敲了一遍，账单也响了一声。`,
-        apply: () => {
-          target.level = (target.level || 1) + 1;
-          this.say(`${target.name} 提升到 Lv.${target.level}`);
-        },
-      });
-    }
-    return offers;
+      type: item.tag || "附魔",
+      text: this.shortEnchantText(item.stat || item.text || ""),
+      apply: () => this.prepareEnchantConfirm(item),
+    };
+  },
+
+  shortEnchantText(text = "") {
+    return String(text)
+      .replace(/当前武器/g, "")
+      .replace(/命中时/g, "命中")
+      .replace(/概率/g, "")
+      .replace(/范围/g, "范围")
+      .replace(/攻击频率/g, "攻速")
+      .replace(/伤害/g, "伤害")
+      .slice(0, 18);
+  },
+
+  prepareEnchantConfirm(enchant) {
+    this.pendingEnchantChoice = enchant;
+    this.currentRoom = {
+      id: "blacksmith",
+      title: "确认附魔",
+      copy: `${enchant.name}：${this.shortEnchantText(enchant.stat || "")}`,
+      button: "确认附魔",
+      confirmingEnchant: true,
+    };
+    this.shopOffers = [];
+    this.renderIntermission();
+    this.sfx.play("deal");
   },
 
   applyWeaponEnchant(enchant) {
@@ -3019,50 +4231,129 @@ Object.assign(RogueGame.prototype, {
     if (existing) existing.level = (existing.level || 1) + 1;
     else weapon.enchantments.push({ ...enchant, level: 1 });
     if (enchant.effect?.killDamageBuff) weapon.killDamageBuff = Math.max(weapon.killDamageBuff || 0, enchant.effect.killDamageBuff);
-    this.addEffect("ring", this.player.x, this.player.y, 70, enchant.color || COLORS.fire);
-    this.say(`铁匠附魔：${enchant.name}`);
-    this.completeSafeEvent("武器发烫了。进入下一层前最好别摸刃口。");
+    this.addEffect("ring", this.player.x, this.player.y, 70, rarityColor(enchant.rarity));
+    this.say(`附魔：${enchant.name}`);
+    this.recalculateSynergies();
   },
 
-  openDivineBlessingReward() {
-    this.mode = "bossRelic";
-    this.bossRewardRefreshed = false;
-    this.pendingAfterDivine = this.floor >= 20 ? "win" : "stage";
-    this.currentRoom = {
-      id: "bossRelic",
-      title: "圣遗物回应了你",
-      copy: "Boss 已经倒下，现在轮到神明挑价码。",
+  isBossWeaponDropFloor(floor = this.floor) {
+    const floors = Array.isArray(BOSS_WEAPON_DROP.floors) ? BOSS_WEAPON_DROP.floors : [];
+    return floors.includes(this.cycleStep(floor)) || this.cycleStep(floor) === 10;
+  },
+
+  rollBossWeaponReward() {
+    const current = this.primaryWeapon();
+    const locked = (BOSS_WEAPON_DROP.pool || []).filter((id) => ROGUE_WEAPONS[id] && !this.isWeaponUnlocked(id));
+    const shouldGuarantee = BOSS_WEAPON_DROP.guaranteeNewWeaponOnFirstTenthBoss && this.cycleStep(this.floor) === 10 && !this.profile.clearedFirstTenthBoss && locked.length;
+    const unlockChance = shouldGuarantee || (locked.length && Math.random() < 0.32);
+    if (unlockChance) return this.bossWeaponChoice(shuffle([...locked])[0], "unlock");
+    return this.bossWeaponChoice(current?.id || this.startingWeapon, "upgrade");
+  },
+
+  bossWeaponChoice(weaponId, forcedResult = "") {
+    const weapon = ROGUE_WEAPONS[weaponId];
+    const owned = this.weapons.find((item) => item.id === weaponId);
+    const unlocked = this.isWeaponUnlocked(weaponId);
+    const canUpgrade = Boolean(owned && owned.level < this.weaponMaxLevel(owned));
+    const result = forcedResult || (!unlocked ? "unlock" : "upgrade");
+    const rarity = result === "unlock" ? "epic" : canUpgrade ? "elite" : "common";
+    const actionText = {
+      unlock: "新武器解锁",
+      upgrade: canUpgrade ? `当前武器升至 ${this.weaponLevelLabel((owned?.level || 1) + 1)}` : "当前武器打磨",
+    }[result];
+    return {
+      id: `boss-echo-${weaponId}`,
+      weaponId,
+      icon: weaponId === "magicMissile" ? "crystal" : weaponId === "dart" ? "scope" : weaponId === "needle" ? "scroll" : weaponId === "fist" ? "shield" : "sword",
+      title: `${weapon.name}回声`,
+      type: "武器回声",
+      rarity,
+      color: rarityColor(rarity),
+      text: actionText,
+      apply: () => this.applyBossWeaponDrop({ weaponId, floor: this.floor }),
     };
-    this.shopOffers = this.rollDivineOffers();
+  },
+  applyBossWeaponDrop(drop) {
+    const weaponId = drop?.weaponId;
+    const dropped = ROGUE_WEAPONS[weaponId];
+    const owned = this.weapons.find((item) => item.id === weaponId);
+    if (!dropped) return { title: "武器掉落", copy: "裂隙里掉出的武器数据异常，本次没有获得奖励。", button: "继续挑战", record: { result: "invalid" } };
+
+    let record;
+    let title;
+    let copy;
+    let button = "继续挑战";
+
+    if (!this.isWeaponUnlocked(weaponId)) {
+      this.profile.unlockedWeapons = Array.from(new Set([...(this.profile.unlockedWeapons || []), weaponId]));
+      this.writeProfile();
+      title = "新武器已解锁";
+      copy = `${dropped.name} 已加入大厅。`;
+      button = "确认";
+      record = { result: "unlock", weaponId, isNewUnlock: true };
+    } else if (owned && owned.level < this.weaponMaxLevel(owned)) {
+      const before = owned.level || 1;
+      const upgrade = this.upgradeWeapon(weaponId, { level: 1 });
+      if (upgrade.upgraded) {
+        const skill = upgrade.skill || this.weaponSkill(dropped, upgrade.level);
+        title = "武器升阶";
+        copy = `${dropped.name} ${this.weaponLevelLabel(upgrade.level)} · ${skill?.skillName || "新动作"}`;
+        record = { result: "upgrade", weaponId, beforeLevel: before, afterLevel: upgrade.level, skillName: skill?.skillName || "" };
+      } else {
+        record = { result: "upgrade", weaponId, capped: true };
+        title = "当前武器打磨";
+        copy = "当前武器手感提升。";
+      }
+    } else {
+      const upgrade = this.upgradeWeapon(this.primaryWeapon()?.id || this.startingWeapon, { cooldown: 0.05, speed: 18, returnSpeed: 18 });
+      title = "当前武器打磨";
+      copy = upgrade?.upgraded ? "当前武器升阶。" : "当前武器手感提升。";
+      record = { result: "upgrade", weaponId: this.primaryWeapon()?.id || this.startingWeapon, capped: true };
+    }
+
+    this.runStats.bossWeaponDrops.push({ floor: this.floor, weaponId, ...record });
+    const rewardRarity = record.result === "unlock" ? "epic" : record.result === "upgrade" ? "elite" : "common";
+    this.addEffect("absorb", this.player.x, this.player.y, 92, rarityColor(rewardRarity));
+    this.sfx.play(record.result === "unlock" ? "level" : "confirm");
+    return { title, copy, button, record };
+  },
+
+  openBossWeaponReward() {
+    this.resetSingleRefresh("weaponReward");
+    const offers = [this.rollBossWeaponReward()].filter(Boolean);
+    this.mode = "weaponReward";
+    this.currentRoom = {
+      id: "weaponReward",
+      title: "武器回声",
+      copy: "当前结果。可刷新。",
+      button: "继续挑战",
+    };
+    this.shopOffers = offers;
     this.renderIntermission();
     ui.shop.classList.remove("hidden");
   },
 
-  rollDivineOffers() {
-    return shuffle(DIVINE_BLESSINGS.map((item) => ({ ...item }))).slice(0, 3).map((item) => ({
-      ...item,
-      title: item.name,
-      type: `【${item.god}】`,
-      text: `${item.stat}\n${item.text}`,
-      apply: () => this.addDivineBlessing(item),
-    }));
-  },
-
-  addDivineBlessing(blessing) {
-    if (!this.divineBlessings.some((item) => item.id === blessing.id)) this.divineBlessings.push(blessing);
-    this.runStats.blessingsFound += 1;
-    this.addEffect("absorb", this.player.x, this.player.y, 90, blessing.color || COLORS.gold);
-    this.say(`神明祝福：${blessing.name}`);
-    this.clearLayer(ui.shop);
-    if (this.floor >= 9) {
+  completeBossWeaponReward(reward) {
+    const completedAllMaps = this.floor >= 40;
+    if (this.cycleStep(this.floor) === 10) {
       this.runStats.completedNormal = true;
+      this.runStats.enteredDeep = this.floor >= 10;
       this.profile.clearedNormalMode = true;
       this.profile.unlockedDeepChallenge = true;
-      this.unlockAchievement("clearFloor9");
+      this.profile.clearedFirstTenthBoss = true;
+      this.unlockAchievement("clearFloor10");
       this.writeProfile();
     }
-    if (this.pendingAfterDivine === "win") this.winRun();
-    else this.openStageSummary(true);
+    this.currentRoom = {
+      ...(this.currentRoom || {}),
+      completed: true,
+      title: completedAllMaps ? "四十层裂隙已通关" : reward.title,
+      copy: completedAllMaps ? "你已经突破 1-40 层全部地图。重新开始后可选择武器开启新一轮挑战。" : reward.copy,
+      button: completedAllMaps ? "重新开始" : "进入下一层",
+    };
+    this.shopOffers = [];
+    this.renderIntermission();
+    ui.shop.classList.remove("hidden");
   },
 
   completeSafeEvent(message) {
@@ -3085,32 +4376,21 @@ Object.assign(RogueGame.prototype, {
 Object.assign(RogueGame.prototype, {
   finishFloor() {
     if (this.mode !== "combat") return;
+    this.resetSingleRefresh("floorEnd");
     this.releaseAll(this.active.enemies, this.enemyPool);
     this.releaseAll(this.active.drops, this.dropPool);
     this.profile.highestFloor = Math.max(this.profile.highestFloor || 1, this.floor);
-    if (this.floor >= 9) {
-      this.runStats.completedNormal = true;
-      this.profile.clearedNormalMode = true;
-      this.profile.unlockedDeepChallenge = true;
-      this.unlockAchievement("clearFloor9");
-    }
     if (this.floor >= 10) {
       this.runStats.enteredDeep = true;
       this.unlockAchievement("enterDeep");
     }
     if (this.floor >= 20) {
       this.unlockAchievement("reachFloor20");
-      this.winRun();
-      return;
     }
     this.writeProfile();
-    const afterClear = FLOOR_PLAN[this.floor]?.afterClear;
-    if (afterClear === "safe_shrine") {
-      this.startSafeEventFloor(this.floor, "shrine", FLOOR_PLAN[this.floor]?.nextFloor || this.floor + 1);
-      return;
-    }
-    if (afterClear === "safe_blacksmith") {
-      this.startSafeEventFloor(this.floor, "blacksmith", FLOOR_PLAN[this.floor]?.nextFloor || this.floor + 1);
+    if (this.bossRewardPending && this.isBossWeaponDropFloor(this.floor)) {
+      this.bossRewardPending = false;
+      this.openBossWeaponReward();
       return;
     }
     this.requestNextFloor(this.floor + 1);
@@ -3118,18 +4398,17 @@ Object.assign(RogueGame.prototype, {
 
   openStageSummary(normalClear = false) {
     this.mode = "stage";
-    ui.stageTitle.textContent = normalClear || this.floor >= 9 ? "普通局通关" : `第 ${this.floor} 层完成`;
+    const isNormalClear = normalClear && this.cycleStep(this.floor) === 10;
+    ui.stageTitle.textContent = isNormalClear ? "十层循环突破" : `第 ${this.floor} 层完成`;
     ui.stageBody.innerHTML = this.statRows([
       ["当前到达", `第 ${this.floor} 层`],
       ["击败敌人", this.runStats.kills],
       ["获得金币", this.runStats.coinsEarned],
-      ["人物强化", this.playerUpgrades.map((item) => item.name).slice(-3).join(" / ") || "无"],
-      ["武器附魔", this.weapons.flatMap((weapon) => weapon.enchantments || []).map((item) => item.name).join(" / ") || "无"],
-      ["神明祝福", this.divineBlessings.map((item) => item.name).join(" / ") || "无"],
-      ["普通局", this.floor >= 9 ? "已完成" : "进行中"],
+      ["裂隙祝福", this.playerUpgrades.map((item) => item.name).slice(-3).join(" / ") || "无"],
+      ["武器附魔", this.weapons.flatMap((weapon) => weapon.enchantments || []).map((item) => item.name).join(" / ") || "无"],      ["十层循环", this.profile.clearedNormalMode ? "已突破" : "进行中"],
     ]);
-    ui.stageSettle.textContent = this.floor >= 9 ? "带着奖励离开" : "暂时结算";
-    ui.stageContinue.textContent = this.floor >= 9 ? "继续挑战第 10 层" : "继续前进";
+    ui.stageSettle.textContent = isNormalClear ? "带着奖励离开" : "暂时结算";
+    ui.stageContinue.textContent = "继续前进";
     ui.stageSummary.classList.remove("hidden");
     this.updateUi();
   },
@@ -3138,7 +4417,7 @@ Object.assign(RogueGame.prototype, {
     this.clearLayer(ui.stageSummary);
     this.runStats.rewardMultiplier += this.floor >= 9 ? 0.18 : 0.08;
     if (this.floor >= 10) this.runStats.enteredDeep = true;
-    this.requestNextFloor(this.floor >= 9 ? 10 : this.floor + 1);
+    this.requestNextFloor(this.floor + 1);
   },
 
   settleRun(reason = "暂时结算") {
@@ -3161,9 +4440,8 @@ Object.assign(RogueGame.prototype, {
   pickRoomType() {
     if (this.specialForFloor(this.floor)) return { id: "bossReward", title: "高阶层间奖励", copy: "强敌倒下后，空间裂隙里掉出了更珍贵的东西。", shop: false };
     const roll = Math.random();
-    if (roll < 0.3) return { id: "shrine", title: "破碎神龛", copy: "某种古老的力量正在回应你。", shop: false };
+    if (roll < 0.3) return { id: "shrine", title: "沉默神龛", copy: "沉默神龛正在等待一笔裂隙交易。", shop: false };
     if (roll < 0.55) return { id: "forge", title: "流浪铁匠", copy: "他只关心你的武器还能不能撑到下一层。", shop: false };
-    if (roll < 0.75) return { id: "relic", title: "遗物箱", copy: "箱子里传来轻微的碰撞声。", shop: false };
     if (roll < 0.9) return { id: "supply", title: "临时补给", copy: "这里很安静，但这种安静通常不会持续太久。", shop: false };
     return { id: "shop", title: "临时商店", copy: "价格不算公道，但你可能没有更好的选择。", shop: true };
   },
@@ -3171,54 +4449,36 @@ Object.assign(RogueGame.prototype, {
   rollRoomRewards(room) {
     if (room.id === "shop") return this.rollShopOffers();
     const rewards = [];
-    if (room.id === "shrine" || room.id === "bossReward") rewards.push(...Object.values(ROGUE_BLESSINGS).map((item) => this.rewardFromBlessing(item)));
     if (room.id === "forge" || room.id === "bossReward") rewards.push(...this.weapons.map((weapon) => this.rewardWeaponUpgrade(weapon)));
-    if (room.id === "relic" || room.id === "bossReward") rewards.push(...this.relicRewards());
     if (room.id === "supply") rewards.push(...this.supplyRewards());
     if (room.id === "bossReward") rewards.push(this.rewardComboUpgrade());
     return shuffle(rewards).slice(0, 3);
   },
 
-  rewardFromBlessing(blessing) {
-    return {
-      id: blessing.id,
-      title: blessing.name,
-      type: "祝福",
-      rarity: blessing.rarity,
-      color: blessing.color,
-      text: blessing.text,
-      apply: () => this.addBlessing(blessing.id),
-    };
-  },
-
   rewardWeaponUpgrade(weapon) {
+    const titles = {
+      fist: "缠紧拳带",
+      knife: "磨亮刀纹",
+      magicMissile: "重刻杖纹",
+      dart: "校准回旋",
+      needle: "重理针线",
+    };
     return {
       id: `forge-${weapon.id}`,
-      title: weapon.id === "knife" ? "磨利刀锋" : weapon.id === "magicMissile" ? "重刻星纹" : "调整尾翼",
-      type: "武器强化",
+      title: titles[weapon.id] || `${weapon.shortName} 升阶`,
+      type: "武器升阶",
       rarity: "common",
-      color: weapon.color,
-      text: `${weapon.shortName} 等级 +1，并获得额外冷却缩减。`,
+      color: rarityColor("common"),
+      text: weapon.level >= this.weaponMaxLevel(weapon) ? "手感提升" : "升一阶",
       apply: () => this.upgradeWeapon(weapon.id, { level: 1, cooldown: 0.05, speed: 20, returnSpeed: 24 }),
     };
   },
 
-  relicRewards() {
-    return [
-      { id: "poisonFeather", title: "毒羽", type: "遗物", rarity: "common", color: "#7ae582", text: "飞镖和飞弹命中后有概率造成持续伤害。", apply: () => this.addRelic({ id: "poisonFeather", name: "毒羽" }) },
-      { id: "magneticCord", title: "磁力绳", type: "遗物", rarity: "common", color: COLORS.xp, text: "飞镖返回时吸附附近经验和金币。", apply: () => this.addRelic({ id: "magneticCord", name: "磁力绳" }) },
-      { id: "wristguard", title: "破旧护腕", type: "遗物", rarity: "common", color: COLORS.gold, text: "受到伤害时，有概率格挡本次伤害。", apply: () => this.addRelic({ id: "wristguard", name: "破旧护腕" }) },
-      { id: "refreshTicket", title: "升级刷新券", type: "遗物", rarity: "common", color: COLORS.gold, text: "立即获得 20 金币，用于刷新升级选项。", apply: () => { this.coins += 20; this.runStats.coinsEarned += 20; } },
-      { id: "oneShield", title: "一次性护盾", type: "遗物", rarity: "elite", color: COLORS.xp, text: "抵挡下一次受到的伤害。", apply: () => { this.player.shield = 1; this.say("获得一次性护盾。"); } },
-    ];
-  },
-
   supplyRewards() {
     return [
-      { id: "heal", title: "应急治疗", type: "补给", rarity: "common", color: COLORS.hp, text: "恢复一部分生命值。", apply: () => { this.hp = Math.min(this.maxHp, this.hp + 45); } },
-      { id: "goldBag", title: "金币袋", type: "补给", rarity: "common", color: COLORS.gold, text: "立即获得一袋金币。", apply: () => { this.coins += 28; this.runStats.coinsEarned += 28; } },
-      { id: "xpPack", title: "经验残片", type: "补给", rarity: "common", color: COLORS.xp, text: "获得少量经验。", apply: () => this.addXp(Math.ceil(this.nextXp * 0.36)) },
-      { id: "tempo", title: "短暂振奋", type: "补给", rarity: "common", color: COLORS.mage, text: "下一层开始时攻击速度提升。", apply: () => { for (const weapon of this.weapons) weapon.timer = 0.05; } },
+      { id: "heal", title: "应急治疗", type: "补给", rarity: "common", color: rarityColor("common"), text: "恢复 2 颗爱心。", apply: () => { this.hp = Math.min(this.maxHp, this.hp + 40); } },
+      { id: "goldBag", title: "金币袋", type: "补给", rarity: "common", color: rarityColor("common"), text: "立即获得一袋金币。", apply: () => { this.coins += 28; this.runStats.coinsEarned += 28; } },
+      { id: "tempo", title: "短暂振奋", type: "补给", rarity: "common", color: rarityColor("common"), text: "下一层开始时攻击速度提升。", apply: () => { for (const weapon of this.weapons) weapon.timer = 0.05; } },
     ];
   },
 
@@ -3228,16 +4488,13 @@ Object.assign(RogueGame.prototype, {
       title: "组合脉冲",
       type: "组合",
       rarity: "epic",
-      color: COLORS.gold,
+      color: rarityColor("epic"),
       text: "当前激活组合效果增强。若未激活组合，则获得一把缺失武器。",
       apply: () => {
         if (this.synergies.length) {
           this.areaDamage(this.player.x, this.player.y, 120, 48 + this.level * 3, COLORS.gold);
-          this.say("组合脉冲强化。");
-        } else {
-          const missing = Object.keys(ROGUE_WEAPONS).find((id) => !this.weapons.some((weapon) => weapon.id === id));
-          if (missing) this.addWeapon(missing);
-        }
+          this.say("组合脉冲");
+        } else this.upgradeWeapon(this.primaryWeapon()?.id, { cooldown: 0.04 });
       },
     };
   },
@@ -3249,58 +4506,62 @@ Object.assign(RogueGame.prototype, {
     const isShop = room.id === "shop";
     const isShrine = room.id === "shrine";
     const isBlacksmith = room.id === "blacksmith";
-    const isBossRelic = room.id === "bossRelic";
     const isCompletedSafe = Boolean(room.completed);
     const isNextFloor = room.id === "nextFloor";
-    ui.shopKicker.textContent = isNextFloor ? "下一层" : isShop ? "裂隙商店" : isShrine ? "风险交易" : isBlacksmith ? "武器附魔" : isBossRelic ? "Boss 圣遗物" : "层间房间";
+    const isWeaponReward = room.id === "weaponReward";
+    const isWeaponNotice = room.id === "weaponNotice";
+    ui.shopKicker.textContent = isNextFloor ? "下一层" : isWeaponReward ? "武器回声" : isWeaponNotice ? "武器提示" : isShop ? "裂隙商店" : isShrine ? "裂隙交易" : isBlacksmith ? "武器附魔" : "层间房间";
     ui.shopTitle.textContent = room.title;
     ui.shopCopy.textContent = room.copy;
     ui.shopGold.textContent = `金币 ${this.coins}`;
-    if (isNextFloor) {
+    if (isNextFloor || isWeaponNotice || (isWeaponReward && isCompletedSafe) || (isBlacksmith && isCompletedSafe) || (isBlacksmith && room.confirmingEnchant)) {
       ui.refreshShop.classList.add("hidden");
     } else if (isBlacksmith) {
-      const price = (ECONOMY.blacksmithRefreshPrices || [25])[this.blacksmithRefreshIndex] || (ECONOMY.blacksmithRefreshPrices || [25]).at?.(-1) || 80;
-      ui.refreshShop.textContent = `刷新附魔 ${price}金`;
-      ui.refreshShop.disabled = isCompletedSafe || this.coins < price;
+      const price = this.currentRefreshPrice || SINGLE_REFRESH_BASE;
+      ui.refreshShop.textContent = `刷新 ${price}金`;
+      ui.refreshShop.disabled = false;
       ui.refreshShop.classList.remove("hidden");
-    } else if (isBossRelic) {
-      const price = ECONOMY.bossRerollPrice?.[this.bossRelicFloor] || ECONOMY.bossRerollPrice?.default || 60;
-      ui.refreshShop.textContent = this.bossRewardRefreshed ? "已重掷" : `重掷祝福 ${price}金`;
-      ui.refreshShop.disabled = this.bossRewardRefreshed || this.coins < price;
+    } else if (isWeaponReward) {
+      const price = this.currentRefreshPrice || SINGLE_REFRESH_BASE;
+      ui.refreshShop.textContent = `刷新 ${price}金`;
+      ui.refreshShop.disabled = false;
       ui.refreshShop.classList.remove("hidden");
     } else if (isShop || room.id === "intermission") {
       ui.refreshShop.textContent = `刷新商品 ${this.intermissionRefreshPrice}金`;
-      ui.refreshShop.disabled = this.coins < this.intermissionRefreshPrice;
+      ui.refreshShop.disabled = false;
       ui.refreshShop.classList.remove("hidden");
     } else {
       ui.refreshShop.classList.add("hidden");
     }
-    ui.continueRun.textContent = isNextFloor ? `确认进入第 ${this.pendingNextFloor} 层` : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
-    ui.continueRun.classList.toggle("hidden", !(isNextFloor || isShop || isCompletedSafe));
+    ui.continueRun.textContent = room.confirmingEnchant ? "确认附魔" : isWeaponReward || isWeaponNotice ? room.button || "确认" : isNextFloor ? `确认进入第 ${this.pendingNextFloor} 层` : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
+    ui.continueRun.classList.toggle("hidden", !(isNextFloor || room.confirmingEnchant || (isWeaponReward && isCompletedSafe) || isWeaponNotice || isShop || (isCompletedSafe && !isWeaponReward)));
     ui.shopMessage.textContent = "";
     ui.shopItems.innerHTML = "";
-    ui.shopItems.className = isShop || isShrine || isBlacksmith || isBossRelic ? "choice-grid shop-grid" : "choice-grid card-fan";
+    ui.shop.classList.toggle("next-floor-modal", isNextFloor);
+    ui.shop.classList.toggle("blacksmith-choice-modal", isBlacksmith && !room.confirmingEnchant);
+    ui.shop.classList.toggle("blacksmith-confirm-modal", isBlacksmith && room.confirmingEnchant);
+    ui.shopItems.className = isShop || isShrine ? "choice-grid shop-grid" : isBlacksmith && !room.confirmingEnchant ? "choice-grid card-fan" : isBlacksmith || isWeaponReward ? "choice-grid single-result" : "choice-grid card-fan";
     this.shopOffers.forEach((item, index) => {
       const button = document.createElement("button");
-      button.className = `choice-card ${isShop || isShrine || isBlacksmith || isBossRelic ? "shop-card" : ""} rarity-${item.rarity || "common"}`;
+      button.className = `choice-card ${isShop || isShrine || isBlacksmith ? "shop-card" : ""} rarity-${item.rarity || "common"}`;
       button.type = "button";
-      button.style.setProperty("--card-color", item.color || COLORS.xp);
+      button.style.setProperty("--card-color", rarityColor(item.rarity));
       button.style.setProperty("--delay", `${index * 80}ms`);
       button.style.setProperty("--r", `${(index - 1) * 8}deg`);
-      if (isShop || isShrine || isBlacksmith || isBossRelic) {
-        const priceText = item.sold ? "成交。概不退换。" : item.price ? (this.coins < item.price ? "金币不足" : `${item.price} 金币`) : isBlacksmith || isBossRelic ? "首次免费" : item.button || "选择";
-        button.innerHTML = `<span class="shop-icon" aria-hidden="true">${shopIconSvg(item.icon || (isShrine ? "skull" : isBlacksmith ? "sword" : isBossRelic ? "crystal" : "coin"))}</span><strong>${item.title}</strong><span>${item.type} · ${item.text}</span><em>${priceText}</em>`;
+      if (isShop || isShrine || isBlacksmith) {
+        const priceText = item.sold ? "成交" : item.price ? (this.coins < item.price ? "金币不足" : `${item.price} 金币`) : item.button || "选择";
+        button.innerHTML = `<span class="shop-icon" aria-hidden="true">${shopIconSvg(item.icon || (isShrine ? "skull" : isBlacksmith ? "sword" : "coin"))}</span><strong>${item.title}</strong><span>${item.type} · ${item.text}</span><em>${priceText}</em>`;
       } else {
         button.innerHTML = `<small>${item.type} · ${RARITIES[item.rarity || "common"].label}</small><strong>${item.title}</strong><span>${item.text}</span>`;
       }
-      button.disabled = item.sold || (item.price && this.coins < item.price);
+      button.disabled = Boolean(item.sold);
       button.addEventListener("click", () => (isShop ? this.openBuyDialog(item) : this.chooseIntermissionReward(item)));
       ui.shopItems.appendChild(button);
     });
   },
 
   chooseIntermissionReward(item) {
-    if (!["intermission", "shrine", "blacksmith", "bossRelic"].includes(this.mode)) return;
+    if (!["intermission", "shrine", "blacksmith", "weaponReward"].includes(this.mode)) return;
     if (item.price && this.coins < item.price) {
       this.showShopMessage("金币不足。钱不够，命也不够。");
       this.sfx.play("fail");
@@ -3308,11 +4569,14 @@ Object.assign(RogueGame.prototype, {
     }
     const modeBeforeApply = this.mode;
     if (item.price && this.mode !== "shrine") this.coins -= item.price;
-    item.apply(this);
-    if (modeBeforeApply === "shrine" || modeBeforeApply === "blacksmith" || modeBeforeApply === "bossRelic") return;
-    if (item.type === "祝福") this.sfx.play("level");
-    else this.sfx.play("upgradePick");
-    this.addEffect("absorb", this.player.x, this.player.y, item.rarity === "epic" ? 82 : 62, item.color || COLORS.xp);
+    const result = item.apply(this);
+    if (modeBeforeApply === "weaponReward") {
+      this.completeBossWeaponReward(result);
+      return;
+    }
+    if (modeBeforeApply === "shrine" || modeBeforeApply === "blacksmith") return;
+    this.sfx.play("upgradePick");
+    this.addEffect("absorb", this.player.x, this.player.y, item.rarity === "epic" ? 82 : 62, rarityColor(item.rarity));
     this.recalculateSynergies();
     this.clearLayer(ui.shop);
     this.requestNextFloor(this.floor + 1);
@@ -3321,21 +4585,20 @@ Object.assign(RogueGame.prototype, {
   rollShopOffers() {
     const pool = [];
     pool.push(
-      { id: "potion", icon: "potion", title: "生命药剂", type: "补给", rarity: "common", color: COLORS.hp, text: "回复 55 点生命。", basePrice: 18, apply: () => { this.hp = Math.min(this.maxHp, this.hp + 55); } },
-      { id: "shield", icon: "shield", title: "一次性护盾", type: "遗物", rarity: "common", color: COLORS.xp, text: "抵挡下一次伤害。", basePrice: 28, apply: () => { this.player.shield = 1; } },
-      { id: "ticket", icon: "scroll", title: "升级刷新券", type: "遗物", rarity: "common", color: COLORS.gold, text: "获得 30 金币，专门用于刷新构筑。", basePrice: 20, apply: () => { this.coins += 30; this.runStats.coinsEarned += 30; } },
-      { id: "wristguard", icon: "shield", title: "破旧护腕", type: "遗物", rarity: "common", color: COLORS.gold, text: "受到伤害时，有概率格挡本次伤害。", basePrice: 36, apply: () => this.addRelic({ id: "wristguard", name: "破旧护腕" }) },
-      { id: "magneticCord", icon: "magnet", title: "磁力绳", type: "遗物", rarity: "common", color: COLORS.xp, text: "提升金币拾取吸附范围。", basePrice: 30, apply: () => this.addRelic({ id: "magneticCord", name: "磁力绳" }) },
+      { id: "potion", icon: "potion", title: "爱心药剂", type: "补给", rarity: "common", color: rarityColor("common"), text: "回复 2 颗爱心。", basePrice: 18, apply: () => { this.hp = Math.min(this.maxHp, this.hp + 40); } },
+      { id: "shield", icon: "shield", title: "一次性护盾", type: "补给", rarity: "common", color: rarityColor("common"), text: "抵挡下一次伤害。", basePrice: 28, apply: () => { this.player.shield = 1; } },
+      { id: "ticket", icon: "scroll", title: "祝福刷新券", type: "补给", rarity: "common", color: rarityColor("common"), text: "获得 30 金币。", basePrice: 20, apply: () => { this.coins += 30; this.runStats.coinsEarned += 30; } },
     );
-    for (const weapon of this.weapons) {
+    for (const weapon of [this.primaryWeapon()].filter(Boolean)) {
+      const iconMap = { fist: "shield", knife: "sword", magicMissile: "crystal", dart: "scope", needle: "scroll" };
       pool.push({
         id: `shop-${weapon.id}`,
-        icon: weapon.id === "knife" ? "sword" : weapon.id === "magicMissile" ? "crystal" : "scope",
-        title: `${weapon.shortName} 等级 +1`,
-        type: "武器强化",
+        icon: iconMap[weapon.id] || "sword",
+        title: `${weapon.shortName} 升阶`,
+        type: "武器升阶",
         rarity: "common",
-        color: weapon.color,
-        text: "指定武器强化，不提供人物基础属性。",
+        color: rarityColor("common"),
+        text: weapon.level >= this.weaponMaxLevel(weapon) ? "手感提升" : `当前 ${this.weaponLevelLabel(weapon.level)} → 升阶`,
         basePrice: 34 + weapon.level * 6,
         apply: () => this.upgradeWeapon(weapon.id, { level: 1, cooldown: 0.04 }),
       });
@@ -3353,7 +4616,7 @@ Object.assign(RogueGame.prototype, {
     ui.buyTitle.textContent = item.title;
     ui.buyText.textContent = `${item.type} · ${item.text}`;
     ui.buyPrice.textContent = `${item.price} 金币`;
-    ui.buyConfirm.disabled = this.coins < item.price;
+    ui.buyConfirm.disabled = false;
     ui.buyConfirm.textContent = this.coins < item.price ? "金币不足" : "成交";
     if (this.coins < item.price) {
       this.showShopMessage(`金币不足，还差 ${item.price - this.coins} 金。`);
@@ -3373,14 +4636,14 @@ Object.assign(RogueGame.prototype, {
     const item = this.shopSelected;
     if (!item) return;
     if (this.coins < item.price) {
-      this.showShopMessage(`金币不足，刷新需要 ${item.price} 金。`);
+      this.showShopMessage(`金币不足，购买需要 ${item.price} 金，还差 ${item.price - this.coins} 金。`);
       this.sfx.play("fail");
       return;
     }
     this.coins -= item.price;
     item.sold = true;
     item.apply(this);
-    this.addEffect("ring", this.player.x, this.player.y, 58, item.color || COLORS.gold);
+    this.addEffect("ring", this.player.x, this.player.y, 58, rarityColor(item.rarity));
     this.showShopMessage(`已购买：${item.title}`);
     this.sfx.play("buyConfirm");
     this.closeBuyDialog(false);
@@ -3389,39 +4652,19 @@ Object.assign(RogueGame.prototype, {
   },
 
   refreshIntermission() {
-    if (!["shop", "intermission", "blacksmith", "bossRelic"].includes(this.mode)) return;
-    if (this.mode === "blacksmith") {
-      const prices = ECONOMY.blacksmithRefreshPrices || [25, 40, 60, 80];
-      const price = prices[this.blacksmithRefreshIndex] || prices[prices.length - 1] || 80;
-      if (this.coins < price) {
-        this.showShopMessage(`金币不足，刷新附魔需要 ${price} 金。`);
-        this.sfx.play("fail");
-        return;
-      }
-      this.coins -= price;
-      this.blacksmithRefreshIndex += 1;
-      this.shopOffers = this.rollBlacksmithOffers();
-      this.sfx.play("refresh");
+    if (!["shop", "intermission", "blacksmith", "weaponReward"].includes(this.mode)) return;
+    if (this.mode === "weaponReward") {
+      if (this.currentRoom?.completed) return;
+      if (!this.spendSingleRefresh("刷新回声")) return;
+      this.shopOffers = [this.rollBossWeaponReward()].filter(Boolean);
       this.renderIntermission();
       this.updateUi();
       return;
     }
-    if (this.mode === "bossRelic") {
-      const price = ECONOMY.bossRerollPrice?.[this.bossRelicFloor] || ECONOMY.bossRerollPrice?.default || 60;
-      if (this.bossRewardRefreshed) {
-        this.showShopMessage("圣遗物只愿意重掷一次。");
-        this.sfx.play("fail");
-        return;
-      }
-      if (this.coins < price) {
-        this.showShopMessage(`金币不足，重掷祝福需要 ${price} 金。`);
-        this.sfx.play("fail");
-        return;
-      }
-      this.coins -= price;
-      this.bossRewardRefreshed = true;
-      this.shopOffers = this.rollDivineOffers();
-      this.sfx.play("refresh");
+    if (this.mode === "blacksmith") {
+      if (this.currentRoom?.confirmingEnchant || this.currentRoom?.completed) return;
+      if (!this.spendSingleRefresh("刷新附魔")) return;
+      this.shopOffers = this.rollBlacksmithOffers();
       this.renderIntermission();
       this.updateUi();
       return;
@@ -3440,11 +4683,45 @@ Object.assign(RogueGame.prototype, {
   },
 
   continueFromIntermission() {
+    if (this.mode === "weaponReward") {
+      if (!this.currentRoom?.completed) {
+        this.showShopMessage("先选择一个武器回声。");
+        this.sfx.play("fail");
+        return;
+      }
+      if (this.floor >= 40) {
+        this.retryRun();
+        return;
+      }
+      this.clearLayer(ui.shop);
+      this.requestNextFloor(this.floor + 1);
+      return;
+    }
+    if (this.mode === "weaponNotice") {
+      this.clearLayer(ui.shop);
+      this.mode = ui.heroSelect && !ui.heroSelect.classList.contains("hidden") ? "weaponSelect" : "title";
+      return;
+    }
     if (this.mode === "nextFloor") {
       const next = this.pendingNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
       this.pendingNextFloor = null;
       this.startFloor(next);
+      return;
+    }
+    if (this.mode === "blacksmith" && this.currentRoom?.confirmingEnchant) {
+      const enchant = this.pendingEnchantChoice;
+      if (!enchant) {
+        this.showShopMessage("没有可确认的附魔。");
+        this.sfx.play("fail");
+        return;
+      }
+      this.applyWeaponEnchant(enchant);
+      this.pendingEnchantChoice = null;
+      const next = this.pendingSafeNextFloor || this.floor + 1;
+      this.clearLayer(ui.shop);
+      this.pendingSafeNextFloor = null;
+      this.requestNextFloor(next, "附魔完成。是否进入下一层？");
       return;
     }
     if (["shrine", "blacksmith"].includes(this.mode) && this.currentRoom?.completed) {
@@ -3464,23 +4741,43 @@ Object.assign(RogueGame.prototype, {
     this.shopMessageTimer = 2.4;
   },
 
-  addBlessing(id) {
-    const blessing = ROGUE_BLESSINGS[id];
-    if (!blessing) return;
-    if (!this.blessings.some((item) => item.id === id)) this.blessings.push(blessing);
-    this.runStats.blessingsFound += 1;
-    this.say(`获得祝福：${blessing.name}`);
-    this.sfx.play("level");
+  findBulletBlocker(shot, shotIndex) {
+    for (let j = this.active.effects.length - 1; j >= 0; j -= 1) {
+      if (j === shotIndex) continue;
+      const effect = this.active.effects[j];
+      if (!effect.friendlyAttack) continue;
+      if (effect.radius && ["slash", "ring", "triBurst"].includes(effect.type)) {
+        if (Math.hypot(shot.x - effect.x, shot.y - effect.y) <= shot.radius + effect.radius) return j;
+        continue;
+      }
+      const ax = effect.fromX || effect.x;
+      const ay = effect.fromY || effect.y;
+      const bx = effect.x;
+      const by = effect.y;
+      const vx = bx - ax;
+      const vy = by - ay;
+      const lenSq = vx * vx + vy * vy || 1;
+      const t = clamp(((shot.x - ax) * vx + (shot.y - ay) * vy) / lenSq, 0, 1);
+      const px = ax + vx * t;
+      const py = ay + vy * t;
+      if (Math.hypot(shot.x - px, shot.y - py) <= shot.radius + 14) return j;
+    }
+    return -1;
   },
+
 });
 
 Object.assign(RogueGame.prototype, {
   openBossCue(spec) {
     this.resumeMode = "combat";
     this.mode = "cue";
+    for (let i = this.active.effects.length - 1; i >= 0; i -= 1) {
+      if (this.active.effects[i].type === "enemyShot") this.releaseActive(this.active.effects, i, this.effectPool);
+    }
+    this.player.invuln = Math.max(this.player.invuln || 0, 0.8);
     ui.bossCueKicker.textContent = spec.rank === "boss" ? "Boss 出现" : spec.rank === "lieutenant" ? "副首领出现" : "精英出现";
     ui.bossCueTitle.textContent = spec.cue;
-    ui.bossCueText.textContent = spec.rank === "boss" ? "门槛倒下前，不会有结算。击败它，圣遗物才会出现。" : `${spec.label} 正在屏幕外靠近。`;
+    ui.bossCueText.textContent = spec.rank === "boss" ? "击败它后出现 1 个武器回声结果，可刷新。" : `${spec.label} 正在靠近。`;
     ui.bossCue.classList.remove("hidden");
   },
 
@@ -3490,7 +4787,7 @@ Object.assign(RogueGame.prototype, {
   },
 
   openSettings(message = "") {
-    if (["title", "weaponSelect", "tutorial", "upgrade", "intermission", "shop", "shrine", "blacksmith", "bossRelic", "nextFloor", "stage", "result", "cue"].includes(this.mode)) return;
+    if (["title", "weaponSelect", "tutorial", "upgrade", "intermission", "shop", "shrine", "blacksmith", "weaponReward", "nextFloor", "stage", "result", "cue"].includes(this.mode)) return;
     this.resumeMode = this.mode || "combat";
     this.mode = "settings";
     ui.settings.classList.remove("hidden");
@@ -3514,17 +4811,22 @@ Object.assign(RogueGame.prototype, {
 
   confirmRestartRun() {
     if (!confirm("确定要重新开始吗？当前进度将会清空。")) return;
-    const weapon = this.startingWeapon || this.profile.lastStartingWeapon || "knife";
-    this.startRun(weapon, { skipTutorial: true });
+    this.clearAllModals();
+    this.profile.lastStartingWeapon = null;
+    this.writeProfile();
+    this.resetToTitle();
+    this.openWeaponSelect();
   },
 
   confirmReturnLobby() {
-    if (!confirm("确定要返回大厅吗？当前进度将会清空。")) return;
+    if (!confirm("确定要返回主界面吗？当前本局进度将会清空。")) return;
     this.returnToLobby();
   },
 
   returnToLobby() {
     this.clearAllModals();
+    this.profile.lastStartingWeapon = null;
+    this.writeProfile();
     this.resetToTitle();
   },
 
@@ -3536,7 +4838,7 @@ Object.assign(RogueGame.prototype, {
     ui.settingsContent.appendChild(this.settingsBackButton());
     const copy = document.createElement("p");
     copy.className = "modal-copy";
-    copy.textContent = "拖动屏幕移动角色。敌人会掉落蓝色经验晶体，靠近拾取后才会升级。普通升级只强化人物；第 5 层找神龛，第 9 层 Boss 掉圣遗物，第 10 层找铁匠。";
+    copy.textContent = "移动，攻击，刷新。第 10 层只有 Boss。";
     ui.settingsContent.appendChild(copy);
   },
 
@@ -3590,15 +4892,13 @@ Object.assign(RogueGame.prototype, {
     const weapon = this.primaryWeapon();
     const rows = [
       ["初始武器", this.startingWeapon ? ROGUE_WEAPONS[this.startingWeapon].shortName : "未选择"],
-      ["当前武器", this.weapons.map((item) => `${item.shortName} Lv.${item.level}`).join(" / ") || "无"],
-      ["人物升级", this.playerUpgrades.map((item) => item.name).join(" / ") || "无"],
-      ["武器附魔", weapon?.enchantments?.map((item) => `${item.name} Lv.${item.level || 1}`).join(" / ") || "无"],
-      ["神明祝福", this.divineBlessings.map((item) => item.name).join(" / ") || "无"],
-      ["遗物", this.items.map((item) => item.name).join(" / ") || "无"],
-      ["激活组合", this.synergies.map((item) => item.name).join(" / ") || "无"],
-      ["金币收入", this.runStats.coinsEarned],
+      ["当前武器", this.weapons.map((item) => `${item.shortName}${this.weaponLevelLabel(item.level)} · ${this.weaponSkill(item, item.level)?.skillName || "基础技能"}`).join(" / ") || "无"],
+      ["技能说明", weapon ? this.weaponSkillText(weapon, weapon.level).replace(/\n+/g, " / ") : "无"],
+      ["裂隙祝福", this.playerUpgrades.map((item) => item.name).join(" / ") || "无"],
+      ["武器附魔", weapon?.enchantments?.map((item) => `${item.name} ${item.level || 1}阶`).join(" / ") || "无"],
+      ["激活组合", this.synergies.map((item) => item.name).join(" / ") || "无"],      ["金币收入", this.runStats.coinsEarned],
     ];
-    ui.statsTitle.textContent = `游隙者 Lv.${this.level}`;
+    ui.statsTitle.textContent = "游隙者";
     ui.statsBody.innerHTML = this.statRows(rows);
     ui.statsPanel.classList.remove("hidden");
   },
@@ -3632,8 +4932,8 @@ Object.assign(RogueGame.prototype, {
       ["存活时间", formatTime(survived)],
       ["击败敌人", this.runStats.kills],
       ["到达层数", `第 ${Math.max(this.floor, this.runStats.floorsReached)} 层`],
-      ["普通局", this.runStats.completedNormal ? "已完成" : "未完成"],
-      ["深层挑战", this.runStats.enteredDeep ? "已进入" : "未进入"],
+      ["武器掉落", this.runStats.bossWeaponDrops.map((drop) => `${ROGUE_WEAPONS[drop.weaponId]?.shortName || drop.weaponId}:${drop.result}`).join(" / ") || "无"],      ["十层循环", this.runStats.completedNormal ? "已突破" : "未突破"],
+      ["深层推进", this.runStats.enteredDeep ? "已进入" : "未进入"],
       ["最高组合", this.highestSynergy],
       ["获得金币", this.runStats.coinsEarned],
     ]);
@@ -3643,7 +4943,9 @@ Object.assign(RogueGame.prototype, {
   },
 
   retryRun() {
-    this.startRun(this.startingWeapon || this.profile.lastStartingWeapon || "knife", { skipTutorial: true });
+    this.clearAllModals();
+    this.resetToTitle();
+    this.openWeaponSelect();
   },
 
   changeStartingWeapon() {
@@ -3660,10 +4962,10 @@ Object.assign(RogueGame.prototype, {
     const names = {
       triBurstFirst: "首次触发三相爆发",
       kill300: "单局击败 300 个敌人",
-      knifeFloor3: "用刀开局到达第 3 层",
-      missileFloor3: "用飞弹开局到达第 3 层",
+      knifeFloor3: "用太刀开局到达第 3 层",
+      missileFloor3: "用法杖开局到达第 3 层",
       dartFloor3: "用飞镖开局到达第 3 层",
-      clearFloor9: "首次通关第 9 层",
+      clearFloor10: "首次击败第 10 层 Boss",
       enterDeep: "首次进入深层挑战",
       reachFloor20: "首次到达第 20 层",
     };
@@ -3681,3 +4983,5 @@ Object.assign(RogueGame.prototype, {
 });
 
 window.__swipeDefenseGame = new RogueGame();
+
+
