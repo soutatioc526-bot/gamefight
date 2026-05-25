@@ -25,9 +25,9 @@
         </div>
 
         <div class="hud-center" aria-label="当前关卡信息">
-          <strong id="wave">第1层</strong>
+          <strong id="wave">第 1 层</strong>
           <span id="timer">00:00</span>
-          <span id="remaining">剩余0</span>
+          <span id="remaining">击破 0 / 0</span>
         </div>
 
         <div class="hud-currency" aria-label="资源">
@@ -64,9 +64,9 @@
 
         <div id="level-up" class="modal upgrade-modal hidden" aria-label="裂隙祝福">
           <div class="modal-panel">
-            <h2>裂隙祝福</h2>
+            <h2>怪潮清空！</h2>
             <div class="reward-toolbar">
-              <span id="upgrade-note">选择1项强化</span>
+              <span id="upgrade-note">选择你的裂隙祝福</span>
             </div>
             <div id="upgrade-items" class="choice-grid"></div>
             <button id="refresh-upgrades" type="button" class="small-button bottom-refresh">刷新 100金</button>
@@ -218,7 +218,7 @@
         <div id="overlay" class="overlay">
           <h1>无尽裂隙</h1>
           <p id="profile-summary">
-            战斗层开始前选择裂隙祝福，在第 3 层面对沉默神龛，第 8 层寻找铁匠附魔，第 10 层击败阶段 Boss 夺取武器回声。
+            清空怪潮后选择裂隙祝福，在第 3 层面对沉默神龛，第 8 层寻找铁匠附魔，第 10 层击败阶段 Boss 夺取武器回声。
           </p>
           <div class="overlay-actions">
             <button id="start" type="button">开始冒险</button>
@@ -233,7 +233,7 @@
         </p>
         <ul>
           <li>新玩家默认只能选择拳套、太刀、法杖。</li>
-          <li>战斗层开始前获得 1 项裂隙祝福，可花金币刷新。</li>
+          <li>每层怪潮清空后获得 1 项裂隙祝福，可花金币刷新。</li>
           <li>第 10 层循环 Boss 只给出 1 个武器回声结果，可花金币刷新。</li>
           <li>飞镖和绣花针解锁后，会加入大厅武器选择栏。</li>
         </ul>
@@ -241,7 +241,7 @@
     </main>
 
     <script defer src="./src/data/gameData.js?v=3"></script>
-    <script defer src="./src/game.js?v=31"></script>
+    <script defer src="./src/game.js?v=32"></script>
   </body>
 </html>
 

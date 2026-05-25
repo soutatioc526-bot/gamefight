@@ -940,6 +940,8 @@ Object.assign(RogueGame.prototype, {
     this.gems = 0;
     this.reviveCurrency = 0;
     this.pendingFloorStart = null;
+    this.pendingUpgradeNextFloor = null;
+    this.pendingUpgradeNextCopy = "";
     this.bossRewardPending = false;
     this.floorTime = 0;
     this.floorTimeLimit = 110;
@@ -1314,7 +1316,7 @@ Object.assign(RogueGame.prototype, {
     this.addEffect("absorb", this.player.x, this.player.y, 64, weapon.color);
     this.say(`${weapon.name} 开局。`);
     this.sfx.play("confirm");
-    if (options.skipTutorial || this.profile.settings.seenTutorial) this.startFloor(1);
+    if (options.skipTutorial) this.startFloor(1);
     else this.openTutorial();
     this.updateUi();
   },
@@ -1333,9 +1335,15 @@ Object.assign(RogueGame.prototype, {
     ui.tutorialKicker.textContent = "";
     ui.tutorialKicker.classList.add("empty");
     ui.tutorialPortrait.textContent = "？";
-    ui.tutorialSpeaker.textContent = "操作提示";
-    ui.tutorialLine.textContent = "移动，攻击，刷新祝福。第 10 层只有 Boss。";
-    ui.tutorialNext.textContent = "开始战斗";
+    ui.tutorialSpeaker.textContent = "冲破第 1 层！";
+    ui.tutorialLine.innerHTML = `
+      <div class="tip-lines">
+        <span>清空裂隙怪潮，夺回武器回声</span>
+        <span>通关奖励：裂隙祝福三选一</span>
+        <span>首破第 10 层 Boss：唤醒新武器</span>
+      </div>
+    `;
+    ui.tutorialNext.textContent = "确认进入第 1 层";
     ui.tutorialDialog.classList.add("tip-mode");
     ui.tutorialDialog.classList.remove("hidden");
     this.updateUi();
@@ -1377,7 +1385,7 @@ Object.assign(RogueGame.prototype, {
   clearLayer(layer) {
     if (!layer) return;
     layer.classList.add("hidden");
-    layer.classList.remove("locked", "absorbing");
+    layer.classList.remove("locked", "absorbing", "defeat-only");
   },
 
   releaseAll(list, pool) {
@@ -1577,10 +1585,6 @@ Object.assign(RogueGame.prototype, {
       this.startSafeEventFloor(floor, safeType, floor + 1);
       return;
     }
-    if (!options.skipPreUpgrade) {
-      this.openFloorUpgrade(floor);
-      return;
-    }
     this.mode = "combat";
     this.floor = floor;
     this.resetCombo();
@@ -1667,8 +1671,8 @@ Object.assign(RogueGame.prototype, {
     this.pendingNextFloor = nextFloor;
     this.currentRoom = {
       id: "nextFloor",
-      title: `进入第 ${nextFloor} 层？`,
-      copy: copy || "确认后进入下一层。裂隙不会替你保留勇气。",
+      title: `第${nextFloor}层`,
+      copy: copy || "裂隙不会替你保留勇气",
     };
     this.shopOffers = [];
     this.renderIntermission();
@@ -1696,9 +1700,9 @@ Object.assign(RogueGame.prototype, {
   },
 
   updateUi() {
-    ui.wave.textContent = this.mode === "safe" ? `第${this.floor}层 安全` : `第${this.floor}层`;
-    ui.timer.textContent = this.mode === "safe" ? "SAFE" : formatTime(Math.max(0, this.floorTimeLimit - this.floorTime));
-    ui.remaining.textContent = this.mode === "safe" ? (this.safeEvent?.completed ? "已完成" : "寻找事件") : `剩余${Math.max(0, this.floorGoal - this.floorKills)}`;
+    ui.wave.textContent = `第 ${this.floor} 层`;
+    ui.timer.textContent = formatTime(Math.max(0, Math.floor(this.floorTime || 0)));
+    ui.remaining.textContent = this.mode === "safe" ? (this.safeEvent?.completed ? "已完成" : "寻找事件") : `击破 ${Math.min(this.floorKills, this.floorGoal)} / ${this.floorGoal}`;
     ui.heroName.textContent = "游隙者";
     ui.hudAvatar.className = this.spriteReady("avatar") ? "avatar-frame rogue sprite-avatar" : "avatar-frame rogue";
     ui.hudAvatar.style.backgroundImage = this.spriteReady("avatar") ? `url(${ROGUE_SPRITES.avatar})` : "";
@@ -3934,7 +3938,7 @@ Object.assign(RogueGame.prototype, {
     this.releaseAll(this.active.enemies, this.enemyPool);
     this.releaseAll(this.active.drops, this.dropPool);
     this.say("怪物逃去了裂隙深处。");
-    this.requestNextFloor(this.floor + 1, "怪物逃去了裂隙深处，请前往寻找。");
+    this.openFloorUpgrade(this.floor, { nextFloor: this.floor + 1, nextCopy: "怪物逃去了裂隙深处，请前往寻找。" });
   },
 
   killEnemy(index) {
@@ -4170,10 +4174,12 @@ Object.assign(RogueGame.prototype, {
     return false;
   },
 
-  openFloorUpgrade(floor) {
+  openFloorUpgrade(floor, options = {}) {
     this.clearAllModals();
     this.mode = "upgrade";
-    this.pendingFloorStart = floor;
+    this.pendingFloorStart = options.startFloor || null;
+    this.pendingUpgradeNextFloor = options.nextFloor || null;
+    this.pendingUpgradeNextCopy = options.nextCopy || "";
     this.resetSingleRefresh("upgrade");
     this.currentUpgradeChoices = this.rollUpgradeChoices();
     this.renderUpgradeCards();
@@ -4201,8 +4207,8 @@ Object.assign(RogueGame.prototype, {
   },
 
   renderUpgradeCards() {
-    ui.upgradeTitle.textContent = "裂隙祝福";
-    if (ui.upgradeNote) ui.upgradeNote.textContent = "选择1项强化";
+    ui.upgradeTitle.textContent = "怪潮清空！";
+    if (ui.upgradeNote) ui.upgradeNote.textContent = "选择你的裂隙祝福";
     if (ui.refreshUpgrades) {
       ui.refreshUpgrades.textContent = `刷新 ${this.currentRefreshPrice || SINGLE_REFRESH_BASE}金`;
       ui.refreshUpgrades.disabled = false;
@@ -4240,7 +4246,12 @@ Object.assign(RogueGame.prototype, {
     this.recalculateSynergies();
     const nextFloor = this.pendingFloorStart;
     this.pendingFloorStart = null;
-    if (nextFloor) this.startFloor(nextFloor, { skipPreUpgrade: true });
+    const nextAfterUpgrade = this.pendingUpgradeNextFloor;
+    const nextCopy = this.pendingUpgradeNextCopy;
+    this.pendingUpgradeNextFloor = null;
+    this.pendingUpgradeNextCopy = "";
+    if (nextAfterUpgrade) this.requestNextFloor(nextAfterUpgrade, nextCopy);
+    else if (nextFloor) this.startFloor(nextFloor, { skipPreUpgrade: true });
     else this.mode = "combat";
     this.updateUi();
   },
@@ -4532,9 +4543,10 @@ Object.assign(RogueGame.prototype, {
     this.pendingNextFloor = this.floor + 1;
     this.currentRoom = {
       id: "nextFloor",
+      afterBossReward: !completedAllMaps,
       title: completedAllMaps ? "四十层裂隙已通关" : reward.title,
-      copy: completedAllMaps ? "你已经突破 1-40 层全部地图。重新开始后可选择武器开启新一轮挑战。" : `${reward.copy}\n是否进入第 ${this.floor + 1} 层？`,
-      button: completedAllMaps ? "重新开始" : `进入第 ${this.floor + 1} 层`,
+      copy: completedAllMaps ? "你已经突破 1-40 层全部地图。重新开始后可选择武器开启新一轮挑战。" : reward.copy,
+      button: completedAllMaps ? "重新开始" : "选择裂隙祝福",
     };
     this.shopOffers = [];
     this.renderIntermission();
@@ -4574,7 +4586,7 @@ Object.assign(RogueGame.prototype, {
       this.unlockAchievement("reachFloor20");
     }
     this.writeProfile();
-    this.requestNextFloor(this.floor + 1);
+    this.openFloorUpgrade(this.floor, { nextFloor: this.floor + 1 });
   },
 
   openStageSummary(normalClear = false) {
@@ -4689,9 +4701,10 @@ Object.assign(RogueGame.prototype, {
     const isBlacksmith = room.id === "blacksmith";
     const isCompletedSafe = Boolean(room.completed);
     const isNextFloor = room.id === "nextFloor";
+    const isBossRewardNotice = Boolean(room.afterBossReward);
     const isWeaponReward = room.id === "weaponReward";
     const isWeaponNotice = room.id === "weaponNotice";
-    ui.shopKicker.textContent = isNextFloor ? "下一层" : isWeaponReward ? "武器回声" : isWeaponNotice ? "武器提示" : isShop ? "裂隙商店" : isShrine ? "裂隙交易" : isBlacksmith ? "武器附魔" : "层间房间";
+    ui.shopKicker.textContent = isBossRewardNotice ? "武器回声" : isNextFloor ? "下一层" : isWeaponReward ? "武器回声" : isWeaponNotice ? "武器提示" : isShop ? "裂隙商店" : isShrine ? "裂隙交易" : isBlacksmith ? "武器附魔" : "层间房间";
     ui.shopTitle.textContent = room.title;
     ui.shopCopy.textContent = room.copy;
     ui.shopGold.textContent = `金币 ${this.coins}`;
@@ -4714,7 +4727,7 @@ Object.assign(RogueGame.prototype, {
     } else {
       ui.refreshShop.classList.add("hidden");
     }
-    ui.continueRun.textContent = room.confirmingEnchant ? "确认附魔" : isWeaponReward || isWeaponNotice ? room.button || "确认" : isNextFloor ? room.button || `确认进入第 ${this.pendingNextFloor} 层` : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
+    ui.continueRun.textContent = room.confirmingEnchant ? "确认附魔" : isWeaponReward || isWeaponNotice ? room.button || "确认" : isNextFloor ? room.button || "确认进入下一层" : this.pendingSafeNextFloor ? `进入第 ${this.pendingSafeNextFloor} 层` : "进入下一层";
     ui.continueRun.classList.toggle("hidden", !(isNextFloor || room.confirmingEnchant || (isWeaponReward && isCompletedSafe) || isWeaponNotice || isShop || (isCompletedSafe && !isWeaponReward)));
     ui.shopMessage.textContent = "";
     ui.shopItems.innerHTML = "";
@@ -4875,7 +4888,7 @@ Object.assign(RogueGame.prototype, {
         return;
       }
       this.clearLayer(ui.shop);
-      this.requestNextFloor(this.floor + 1);
+      this.openFloorUpgrade(this.floor, { nextFloor: this.floor + 1 });
       return;
     }
     if (this.mode === "weaponNotice") {
@@ -4891,6 +4904,10 @@ Object.assign(RogueGame.prototype, {
       const next = this.pendingNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
       this.pendingNextFloor = null;
+      if (this.currentRoom?.afterBossReward) {
+        this.openFloorUpgrade(this.floor, { nextFloor: next });
+        return;
+      }
       this.startFloor(next);
       return;
     }
@@ -4906,14 +4923,14 @@ Object.assign(RogueGame.prototype, {
       const next = this.pendingSafeNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
       this.pendingSafeNextFloor = null;
-      this.requestNextFloor(next, "附魔完成。是否进入下一层？");
+      this.openFloorUpgrade(this.floor, { nextFloor: next, nextCopy: "附魔完成。" });
       return;
     }
     if (["shrine", "blacksmith"].includes(this.mode) && this.currentRoom?.completed) {
       const next = this.pendingSafeNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
       this.pendingSafeNextFloor = null;
-      this.requestNextFloor(next);
+      this.openFloorUpgrade(this.floor, { nextFloor: next });
       return;
     }
     if (this.mode !== "shop") return;
@@ -5113,11 +5130,21 @@ Object.assign(RogueGame.prototype, {
     this.writeProfile();
     ui.resultTitle.textContent = title;
     const survived = Math.floor((performance.now() - this.runStats.startTime) / 1000);
-    ui.resultBody.innerHTML = this.statRows([
+    const reachedFloor = Math.max(this.floor, this.runStats.floorsReached);
+    const nextBossFloor = Math.ceil(reachedFloor / 10) * 10;
+    const bossDistance = Math.max(0, nextBossFloor - reachedFloor);
+    ui.resultModal.classList.toggle("defeat-only", Boolean(defeated));
+    ui.resultBody.innerHTML = this.statRows(defeated ? [
       ["存活时间", formatTime(survived)],
       ["击败敌人", this.runStats.kills],
-      ["到达层数", `第 ${Math.max(this.floor, this.runStats.floorsReached)} 层`],
-      ["武器掉落", this.runStats.bossWeaponDrops.map((drop) => `${ROGUE_WEAPONS[drop.weaponId]?.shortName || drop.weaponId}:${drop.result}`).join(" / ") || "无"],      ["十层循环", this.runStats.completedNormal ? "已突破" : "未突破"],
+      ["到达层数", `第 ${reachedFloor} 层`],
+      ["距离 Boss 层", bossDistance > 0 ? `还差 ${bossDistance} 层` : "已到达"],
+    ] : [
+      ["存活时间", formatTime(survived)],
+      ["击败敌人", this.runStats.kills],
+      ["到达层数", `第 ${reachedFloor} 层`],
+      ["武器掉落", this.runStats.bossWeaponDrops.map((drop) => `${ROGUE_WEAPONS[drop.weaponId]?.shortName || drop.weaponId}:${drop.result}`).join(" / ") || "无"],
+      ["十层循环", this.runStats.completedNormal ? "已突破" : "未突破"],
       ["深层推进", this.runStats.enteredDeep ? "已进入" : "未进入"],
       ["最高组合", this.highestSynergy],
       ["获得金币", this.runStats.coinsEarned],
