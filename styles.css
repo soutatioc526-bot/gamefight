@@ -1334,27 +1334,28 @@ button {
 }
 
 .tutorial-modal.tip-mode .tutorial-line {
-  min-height: 112px;
-  padding: 12px;
-  border: 1px solid rgba(83, 216, 251, 0.22);
-  border-radius: 8px;
-  background: rgba(83, 216, 251, 0.08);
+  min-height: 96px;
+  padding: 4px 0 8px;
+  border: 0;
+  background: transparent;
   font-size: 15px;
   font-weight: 800;
+  text-align: center;
 }
 
 .tip-lines {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
+  text-align: center;
 }
 
 .tip-lines span {
   display: block;
-  padding: 8px 10px;
-  border: 1px solid rgba(83, 216, 251, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
 }
 
 .settings-menu {

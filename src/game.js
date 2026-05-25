@@ -123,6 +123,7 @@ const COLORS = {
 
 const HEART_HP = 20;
 const HIT_HEART_DAMAGE = HEART_HP / 2;
+const BASE_PLAYER_HP = HEART_HP * 3;
 
 const RARITIES = {
   common: { label: "普通", color: "#4ee2a0", weight: 62 },
@@ -934,8 +935,8 @@ Object.assign(RogueGame.prototype, {
     this.runEnded = false;
     this.floor = 1;
     this.level = 1;
-    this.hp = 120;
-    this.maxHp = 120;
+    this.hp = BASE_PLAYER_HP;
+    this.maxHp = BASE_PLAYER_HP;
     this.coins = 0;
     this.gems = 0;
     this.reviveCurrency = 0;
@@ -1606,6 +1607,8 @@ Object.assign(RogueGame.prototype, {
     this.safeEvent = null;
     this.currentFloorModifiers = this.nextFloorModifiers || {};
     this.nextFloorModifiers = {};
+    this.releaseAll(this.active.enemies, this.enemyPool);
+    this.releaseAll(this.active.drops, this.dropPool);
     this.player.x = WORLD.width / 2;
     this.player.y = WORLD.height / 2;
     if (this.upgradeStats.floorShield) this.player.shield = Math.max(this.player.shield, this.upgradeStats.floorShield);
@@ -1981,8 +1984,8 @@ Object.assign(RogueGame.prototype, {
         ctx.arc(enemy.x, enemy.y, enemy.safeRadius || 96, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = "rgba(78,226,160,0.9)";
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(255,255,255,0.34)";
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(enemy.x, enemy.y, enemy.safeRadius || 96, 0, Math.PI * 2);
         ctx.stroke();
@@ -2010,6 +2013,16 @@ Object.assign(RogueGame.prototype, {
         ctx.fill();
         ctx.strokeStyle = "rgba(255,85,112,0.72)";
         ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      if (enemy.bossState === "chainDashWarn" || enemy.bossState === "chainDashMove") {
+        ctx.translate(enemy.x, enemy.y);
+        ctx.rotate(enemy.bossAngle || 0);
+        ctx.fillStyle = enemy.bossState === "chainDashMove" ? "rgba(255,85,112,0.24)" : "rgba(255,85,112,0.16)";
+        ctx.strokeStyle = enemy.bossState === "chainDashMove" ? "rgba(255,255,255,0.72)" : "rgba(255,85,112,0.76)";
+        ctx.lineWidth = 3;
+        roundRect(ctx, -20, -34, 1280, 68, 6);
+        ctx.fill();
         ctx.stroke();
       }
       if (enemy.bossState === "quakeWarn") {
@@ -2075,27 +2088,29 @@ Object.assign(RogueGame.prototype, {
   drawAttackRanges() {
     if (this.mode !== "combat" && this.mode !== "safe" && this.mode !== "bossIntro") return;
     for (const weapon of this.weapons || []) {
-      if (weapon.id !== "knife" && weapon.id !== "fist") continue;
-      const target = this.findTarget(weapon.range + 44);
+      const range = this.weaponIndicatorRange(weapon);
+      if (!range) continue;
+      const target = this.findTarget(range);
       const angle = target ? Math.atan2(target.y - this.player.y, target.x - this.player.x) : Math.atan2(this.player.faceY || 0, this.player.faceX || 1);
       ctx.save();
       ctx.translate(this.player.x, this.player.y);
-      ctx.rotate(angle);
       if (weapon.id === "knife") {
-        ctx.fillStyle = "rgba(255, 230, 109, 0.12)";
-        ctx.strokeStyle = "rgba(255, 230, 109, 0.62)";
+        ctx.rotate(angle);
+        ctx.fillStyle = rgba(weapon.color, 0.08);
+        ctx.strokeStyle = rgba(weapon.color, 0.34);
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.arc(0, 0, weapon.range + 18, -0.82, 0.82);
+        ctx.arc(0, 0, range, -0.82, 0.82);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
       } else {
-        ctx.fillStyle = "rgba(78, 226, 160, 0.12)";
-        ctx.strokeStyle = "rgba(78, 226, 160, 0.58)";
-        ctx.lineWidth = 2;
-        roundRect(ctx, 8, -22, weapon.range + 30, 44, 8);
+        ctx.fillStyle = rgba(weapon.color, 0.055);
+        ctx.strokeStyle = rgba(weapon.color, 0.28);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, range, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -2469,6 +2484,18 @@ Object.assign(RogueGame.prototype, {
         ctx.arc(effect.x, effect.y, effect.radius * (0.78 + progress * 0.22), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      } else if (effect.type === "bossCoinFountain") {
+        const progress = 1 - t;
+        ctx.globalAlpha = 0.2 + t * 0.55;
+        ctx.strokeStyle = rgba(COLORS.gold, 0.65);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, effect.radius * (0.55 + progress * 0.6), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = rgba(COLORS.gold, 0.18);
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, effect.radius * (0.24 + progress * 0.18), 0, Math.PI * 2);
+        ctx.fill();
       } else if (effect.type === "triBurst") {
         ctx.strokeStyle = rgba(effect.color, 0.22 + t * 0.6);
         ctx.lineWidth = 4;
@@ -2703,17 +2730,29 @@ Object.assign(RogueGame.prototype, {
   updateEffects(dt) {
     for (let i = this.active.effects.length - 1; i >= 0; i -= 1) {
       const effect = this.active.effects[i];
+      if (effect.type === "bossCoinFountain") {
+        effect.spawnTimer -= dt;
+        while (effect.spawnTimer <= 0 && effect.emitted < effect.count) {
+          effect.spawnTimer += 0.045;
+          effect.emitted += 1;
+          const angle = random(-Math.PI * 0.95, -Math.PI * 0.05);
+          const speed = random(145, 315);
+          const kind = effect.emitted % 8 === 0 ? "coinBag" : "coin";
+          this.spawnDrop(effect.x + random(-10, 10), effect.y + random(-8, 8), kind, kind === "coinBag" ? effect.coinValue * 3 : effect.coinValue, kind === "coinBag" ? 8 : 6, {
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+          });
+        }
+        if (!effect.echoSpawned && effect.life <= dt) {
+          effect.echoSpawned = true;
+          this.spawnWeaponEchoDrop(effect.x, effect.y, effect.reward);
+          this.say("Boss 的武器回声掉落了。");
+        }
+      }
       if (effect.type === "enemyShot") {
         if (this.mode !== "combat" && this.mode !== "safe") continue;
         effect.x += effect.vx * dt;
         effect.y += effect.vy * dt;
-        const blocker = this.findBulletBlocker(effect, i);
-        if (blocker >= 0) {
-          this.addEffect("ring", effect.x, effect.y, 26, COLORS.echo);
-          this.active.effects[blocker].life = 0;
-          this.releaseActive(this.active.effects, i, this.effectPool);
-          continue;
-        }
         if (distance(effect, this.player) <= effect.radius + this.player.radius) {
           this.hurtPlayer(effect.damage);
           this.releaseActive(this.active.effects, i, this.effectPool);
@@ -2805,12 +2844,17 @@ Object.assign(RogueGame.prototype, {
   },
 
   updateSpawn() {
-    if (this.cycleStep(this.floor) === 10) {
-      if (!this.specialSpawned) this.spawnSpecial();
+    const special = this.specialForFloor(this.floor);
+    const step = this.cycleStep(this.floor);
+    if (step === 10) {
+      if (special && !this.specialSpawned) this.spawnSpecial();
       return;
     }
+    if (special && !this.specialSpawned && this.floorSpawned >= Math.floor(this.floorSpawnLimit * 0.65)) {
+      this.spawnSpecial();
+    }
     if (this.floorSpawned >= this.floorSpawnLimit) {
-      if (this.specialForFloor(this.floor) && !this.specialSpawned) this.spawnSpecial();
+      if (special && !this.specialSpawned) this.spawnSpecial();
       return;
     }
     if (this.active.enemies.length >= this.enemyCap()) return;
@@ -2821,7 +2865,7 @@ Object.assign(RogueGame.prototype, {
     }
     const pressure = Math.min(0.46, Math.max(0, this.floor - 3) * 0.035);
     this.spawnTimer = Math.max(0.16, random(0.34, 0.72) - pressure);
-    if (this.specialForFloor(this.floor) && !this.specialSpawned && this.floorSpawned >= Math.floor(this.floorSpawnLimit * 0.65)) this.spawnSpecial();
+    if (special && !this.specialSpawned && this.floorSpawned >= Math.floor(this.floorSpawnLimit * 0.65)) this.spawnSpecial();
   },
 
   enemyCap() {
@@ -3078,6 +3122,18 @@ Object.assign(RogueGame.prototype, {
     return Math.max(0.14, weapon.cooldown / Math.max(0.35, 1 + attackSpeed));
   },
 
+  weaponIndicatorRange(weapon) {
+    if (!weapon) return 0;
+    const padding = {
+      fist: 36,
+      knife: 40,
+      magicMissile: 0,
+      dart: 20,
+      needle: 0,
+    }[weapon.id] ?? 0;
+    return Math.max(0, (weapon.range || 0) + padding);
+  },
+
   primaryWeapon() {
     return this.weapons.find((weapon) => weapon.id === this.startingWeapon) || this.weapons[0] || null;
   },
@@ -3102,7 +3158,7 @@ Object.assign(RogueGame.prototype, {
   },
 
   castFist(weapon) {
-    const target = this.findTarget(weapon.range + 36);
+    const target = this.findTarget(this.weaponIndicatorRange(weapon));
     if (!target) return;
     const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
     const ux = Math.cos(angle);
@@ -3133,7 +3189,8 @@ Object.assign(RogueGame.prototype, {
   },
 
   castKnife(weapon) {
-    const target = this.findTarget(weapon.range + 40);
+    const attackRange = this.weaponIndicatorRange(weapon);
+    const target = this.findTarget(attackRange);
     const angle = target ? Math.atan2(target.y - this.player.y, target.x - this.player.x) : 0;
     const ux = Math.cos(angle);
     const uy = Math.sin(angle);
@@ -3142,7 +3199,7 @@ Object.assign(RogueGame.prototype, {
       const vx = enemy.x - this.player.x;
       const vy = enemy.y - this.player.y;
       const dist = Math.hypot(vx, vy);
-      if (dist > weapon.range + enemy.radius) continue;
+      if (dist > attackRange + enemy.radius) continue;
       const dot = dist > 0 ? (vx / dist) * ux + (vy / dist) * uy : 1;
       if (dot < 0.28) continue;
       this.damageEnemy(enemy, this.weaponDamage(weapon), weapon.color, "knife", { armorPierce: this.weaponEnchantValue(weapon, "armorPierce"), weapon });
@@ -3195,7 +3252,7 @@ Object.assign(RogueGame.prototype, {
     const used = [];
     const pierce = this.weaponEnchantValue(weapon, "missilePierce");
     for (let i = 0; i < shots; i += 1) {
-      const target = this.findTarget(weapon.range, used, true);
+      const target = this.findTarget(this.weaponIndicatorRange(weapon), used, true);
       if (!target) break;
       used.push(target);
       const damage = this.weaponDamage(weapon, weapon.damage * (i > 0 ? 0.62 : 1));
@@ -3219,7 +3276,7 @@ Object.assign(RogueGame.prototype, {
         this.addEffect("dart", this.player.x + ux * (weapon.range + 80), this.player.y + uy * (weapon.range + 80), 0, COLORS.echo, angle, this.player.x, this.player.y);
       }
       if (pierce > 0) {
-        const next = this.findTarget(weapon.range, used, true);
+        const next = this.findTarget(this.weaponIndicatorRange(weapon), used, true);
         if (next) {
           used.push(next);
           this.damageEnemy(next, damage * 0.58, weapon.color, "magicMissile", { weapon });
@@ -3253,7 +3310,8 @@ Object.assign(RogueGame.prototype, {
   },
 
   castDart(weapon) {
-    const target = this.findTarget(weapon.range + 20);
+    const attackRange = this.weaponIndicatorRange(weapon);
+    const target = this.findTarget(attackRange);
     if (!target) return;
     const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
     const ux = Math.cos(angle);
@@ -3264,7 +3322,7 @@ Object.assign(RogueGame.prototype, {
       const vy = enemy.y - this.player.y;
       const along = vx * ux + vy * uy;
       const side = Math.abs(vx * uy - vy * ux);
-      if (along > 0 && along < weapon.range && side < 12 + enemy.radius) hits.push({ enemy, along });
+      if (along > 0 && along < attackRange && side < 12 + enemy.radius) hits.push({ enemy, along });
     }
     hits.sort((a, b) => a.along - b.along);
     weapon.attackCount = (weapon.attackCount || 0) + 1;
@@ -3315,7 +3373,7 @@ Object.assign(RogueGame.prototype, {
   },
 
   castNeedle(weapon) {
-    const target = this.findTarget(weapon.range, [], true);
+    const target = this.findTarget(this.weaponIndicatorRange(weapon), [], true);
     if (!target) return;
     weapon.attackCount = (weapon.attackCount || 0) + 1;
     const damage = this.weaponDamage(weapon);
@@ -3360,12 +3418,11 @@ Object.assign(RogueGame.prototype, {
 
   findTarget(range, exclude = [], preferMarked = false) {
     let best = null;
-    let bestScore = range;
+    let bestScore = range + 999;
     for (const enemy of this.active.enemies) {
       if (exclude.includes(enemy)) continue;
-      if (!this.isEnemyVisible(enemy, 48)) continue;
       const d = distance(enemy, this.player);
-      if (d > range) continue;
+      if (d > range + (enemy.radius || 0)) continue;
       const markBonus = preferMarked && (enemy.marked || enemy.cursed) ? 120 : 0;
       const score = d - markBonus;
       if (score < bestScore) {
@@ -3545,7 +3602,7 @@ Object.assign(RogueGame.prototype, {
     if (!enemy.bossState || enemy.bossState === "idle") {
       moveTowardPlayer(0.42);
       if (enemy.bossTimer <= 0) {
-        const abilityCount = enemy.escapeAtHalf ? 4 : 5;
+        const abilityCount = enemy.escapeAtHalf ? 4 : 6;
         const ability = Math.floor(Math.random() * abilityCount);
         enemy.bossAbilityIndex += 1;
         enemy.bossAngle = toPlayer;
@@ -3566,8 +3623,10 @@ Object.assign(RogueGame.prototype, {
           enemy.bossState = "lockAim";
           enemy.bossTimer = 3;
           enemy.bossLockTarget = { x: this.player.x, y: this.player.y };
-        } else {
+        } else if (ability === 4) {
           this.startBossMeteorSequence(enemy);
+        } else {
+          this.startBossChainDash(enemy);
         }
       }
       return;
@@ -3599,11 +3658,44 @@ Object.assign(RogueGame.prototype, {
           this.shake = Math.max(this.shake, 6);
         }
         enemy.bossRockIndex += 1;
-        enemy.bossRockTimer = 0.72;
+        enemy.bossRockTimer = 0.92;
         if (enemy.bossRockIndex >= enemy.bossRocks.length) {
           enemy.bossRocks = [];
           enemy.bossState = "idle";
           enemy.bossTimer = 1.25;
+        }
+      }
+      return;
+    }
+
+    if (enemy.bossState === "chainDashWarn") {
+      if (enemy.bossTimer <= 0) {
+        enemy.bossState = "chainDashMove";
+        enemy.bossTimer = 0.28;
+        enemy.chainDashStart = { x: enemy.x, y: enemy.y };
+        enemy.chainDashDidHit = false;
+      }
+      return;
+    }
+
+    if (enemy.bossState === "chainDashMove") {
+      const before = { x: enemy.x, y: enemy.y };
+      enemy.x = clamp(enemy.x + Math.cos(enemy.bossAngle) * 780 * dt, WORLD.minX + enemy.radius, WORLD.maxX - enemy.radius);
+      enemy.y = clamp(enemy.y + Math.sin(enemy.bossAngle) * 780 * dt, WORLD.minY + enemy.radius, WORLD.maxY - enemy.radius);
+      const start = enemy.chainDashStart || before;
+      if (!enemy.chainDashDidHit && this.playerNearSegment(start.x, start.y, enemy.x, enemy.y, 72)) {
+        enemy.chainDashDidHit = true;
+        this.hurtPlayer(enemy.attack * 1.24);
+      }
+      if (enemy.bossTimer <= 0) {
+        enemy.chainDashRemaining = Math.max(0, (enemy.chainDashRemaining || 1) - 1);
+        if (enemy.chainDashRemaining > 0) {
+          enemy.bossState = "chainDashWarn";
+          enemy.bossTimer = 0.42;
+          enemy.bossAngle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x) + random(-0.48, 0.48);
+        } else {
+          enemy.bossState = "idle";
+          enemy.bossTimer = 1.35;
         }
       }
       return;
@@ -3745,6 +3837,25 @@ Object.assign(RogueGame.prototype, {
     return along > -18 && along < length && side < width / 2 + this.player.radius;
   },
 
+  playerNearSegment(x1, y1, x2, y2, width = 72) {
+    const vx = x2 - x1;
+    const vy = y2 - y1;
+    const lenSq = vx * vx + vy * vy || 1;
+    const t = clamp(((this.player.x - x1) * vx + (this.player.y - y1) * vy) / lenSq, 0, 1);
+    const px = x1 + vx * t;
+    const py = y1 + vy * t;
+    return Math.hypot(this.player.x - px, this.player.y - py) <= width / 2 + this.player.radius;
+  },
+
+  startBossChainDash(enemy) {
+    enemy.bossState = "chainDashWarn";
+    enemy.bossTimer = 0.48;
+    enemy.chainDashRemaining = 10;
+    enemy.chainDashDidHit = false;
+    enemy.bossAngle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x) + random(-0.55, 0.55);
+    this.say("Boss 正在连续冲刺，观察红色直线范围躲避！");
+  },
+
   startBossSplitPhase(enemy) {
     enemy.bossHalfPhaseDone = true;
     enemy.invulnerable = true;
@@ -3822,13 +3933,13 @@ Object.assign(RogueGame.prototype, {
     enemy.bossState = "meteorWarn";
     enemy.bossTimer = 99;
     enemy.bossRockIndex = 0;
-    enemy.bossRockTimer = 0.8;
+    enemy.bossRockTimer = 1.05;
     enemy.bossRocks = corners.map((corner) => ({
       x: corner.x + random(-42, 42),
       y: corner.y + random(-42, 42),
-      radius: 34,
+      radius: random(230, 275),
     }));
-    this.say("巨石正在裂隙四角成形。");
+    this.say("巨石正在裂隙四角成形，远离半屏爆炸范围！");
   },
 
   spawnBossAoe(enemy) {
@@ -3922,12 +4033,43 @@ Object.assign(RogueGame.prototype, {
   },
 
   spawnBossEchoDrop(enemy) {
-    const reward = this.rollBossWeaponReward();
-    this.spawnDrop(enemy.x, enemy.y, "weaponEcho", 0, 15, {
+    this.spawnWeaponEchoDrop(enemy.x, enemy.y, this.rollBossWeaponReward());
+  },
+
+  spawnWeaponEchoDrop(x, y, reward = this.rollBossWeaponReward()) {
+    this.spawnDrop(x, y, "weaponEcho", 0, 15, {
       vx: random(-24, 24),
       vy: -70,
       reward,
     });
+  },
+
+  startBossCoinFountain(enemy) {
+    const coinMult = this.currentFloorModifiers.coinMult || 1;
+    const range = ECONOMY.bossCoinAmount?.[this.floor] || ECONOMY.bossCoinAmount?.default || [70, 110];
+    const gain = Math.ceil(randomInt(range[0], range[1]) * coinMult);
+    const count = 72;
+    if (this.active.effects.length >= this.effectCap()) this.releaseActive(this.active.effects, 0, this.effectPool);
+    const fountain = this.effectPool.get();
+    Object.assign(fountain, {
+      active: true,
+      type: "bossCoinFountain",
+      x: enemy.x,
+      y: enemy.y,
+      radius: 82,
+      color: COLORS.gold,
+      life: 3,
+      maxLife: 3,
+      spawnTimer: 0,
+      emitted: 0,
+      count,
+      coinValue: Math.max(1, Math.round(gain / count)),
+      reward: this.rollBossWeaponReward(),
+      echoSpawned: false,
+      friendlyAttack: false,
+    });
+    this.active.effects.push(fountain);
+    this.floatText("金币喷涌！", enemy.x, enemy.y - enemy.radius - 28, COLORS.gold, { size: 18, life: 0.8, vy: -28 });
   },
 
   handleBossEscape(enemy, index) {
@@ -3952,11 +4094,12 @@ Object.assign(RogueGame.prototype, {
     }
     if (enemy.cursed > 0) this.spreadCurse(enemy);
     this.onEnemyKilled(enemy);
-    this.rollCoinDrops(enemy);
     if (enemy.rank === "boss") {
       this.bossRewardPending = true;
-      this.spawnBossEchoDrop(enemy);
-      this.say("Boss 的武器回声掉落了。");
+      this.startBossCoinFountain(enemy);
+      this.say("Boss 金币喷涌，武器回声正在凝结。");
+    } else {
+      this.rollCoinDrops(enemy);
     }
     this.burst(enemy.x, enemy.y, enemy.color, enemy.rank === "small" ? 8 : 24);
     this.releaseActive(this.active.enemies, index, this.enemyPool);
@@ -4353,7 +4496,13 @@ Object.assign(RogueGame.prototype, {
     const specific = WEAPON_ENCHANTMENTS[weapon.id] || [];
     const pool = [...generic, ...specific].filter((item) => !weapon.enchantments?.some((owned) => owned.id === item.id)).map((item) => ({ ...item }));
     const source = pool.length ? pool : [...generic, ...specific].map((item) => ({ ...item }));
-    return shuffle(source).slice(0, 3).map((item) => this.formatBlacksmithOffer(item));
+    const offers = shuffle(source).slice(0, 3).map((item) => this.formatBlacksmithOffer(item));
+    if (weapon.level < this.weaponMaxLevel(weapon) && Math.random() < 0.42) {
+      const upgradeOffer = this.blacksmithWeaponUpgradeOffer(weapon);
+      if (offers.length >= 3) offers[randomInt(0, offers.length - 1)] = upgradeOffer;
+      else offers.push(upgradeOffer);
+    }
+    return offers;
   },
 
   rollBlacksmithOffer() {
@@ -4368,6 +4517,22 @@ Object.assign(RogueGame.prototype, {
       type: item.tag || "附魔",
       text: this.shortEnchantText(item.stat || item.text || ""),
       apply: () => this.prepareEnchantConfirm(item),
+    };
+  },
+
+  blacksmithWeaponUpgradeOffer(weapon) {
+    return {
+      id: `blacksmith-upgrade-${weapon.id}`,
+      isWeaponUpgrade: true,
+      rarity: "elite",
+      color: rarityColor("elite"),
+      title: `${weapon.shortName} 升阶`,
+      name: `${weapon.shortName} 升阶`,
+      type: "武器升阶",
+      tag: "武器升阶",
+      text: `${this.weaponLevelLabel(weapon.level)} → ${this.weaponLevelLabel(Math.min(this.weaponMaxLevel(weapon), weapon.level + 1))}`,
+      stat: "铁匠直接强化当前武器阶级。",
+      apply: () => this.prepareEnchantConfirm(this.blacksmithWeaponUpgradeOffer(weapon)),
     };
   },
 
@@ -4386,9 +4551,9 @@ Object.assign(RogueGame.prototype, {
     this.pendingEnchantChoice = enchant;
     this.currentRoom = {
       id: "blacksmith",
-      title: "确认附魔",
-      copy: `${enchant.name}：${this.shortEnchantText(enchant.stat || "")}`,
-      button: "确认附魔",
+      title: enchant.isWeaponUpgrade ? "确认升阶" : "确认附魔",
+      copy: `${enchant.name}：${enchant.isWeaponUpgrade ? enchant.text : this.shortEnchantText(enchant.stat || "")}`,
+      button: enchant.isWeaponUpgrade ? "确认升阶" : "确认附魔",
       confirmingEnchant: true,
     };
     this.shopOffers = [];
@@ -4405,6 +4570,15 @@ Object.assign(RogueGame.prototype, {
     if (enchant.effect?.killDamageBuff) weapon.killDamageBuff = Math.max(weapon.killDamageBuff || 0, enchant.effect.killDamageBuff);
     this.addEffect("ring", this.player.x, this.player.y, 70, rarityColor(enchant.rarity));
     this.say(`附魔：${enchant.name}`);
+    this.recalculateSynergies();
+  },
+
+  applyBlacksmithWeaponUpgrade() {
+    const weapon = this.primaryWeapon();
+    if (!weapon) return;
+    const result = this.upgradeWeapon(weapon.id, { level: 1 });
+    this.addEffect("ring", this.player.x, this.player.y, 76, rarityColor("elite"));
+    this.say(result.upgraded ? `升阶：${weapon.shortName}${this.weaponLevelLabel(weapon.level)}` : "当前武器已达到上限。");
     this.recalculateSynergies();
   },
 
@@ -4918,7 +5092,8 @@ Object.assign(RogueGame.prototype, {
         this.sfx.play("fail");
         return;
       }
-      this.applyWeaponEnchant(enchant);
+      if (enchant.isWeaponUpgrade) this.applyBlacksmithWeaponUpgrade(enchant);
+      else this.applyWeaponEnchant(enchant);
       this.pendingEnchantChoice = null;
       const next = this.pendingSafeNextFloor || this.floor + 1;
       this.clearLayer(ui.shop);
@@ -4941,30 +5116,6 @@ Object.assign(RogueGame.prototype, {
   showShopMessage(message) {
     ui.shopMessage.textContent = message;
     this.shopMessageTimer = 2.4;
-  },
-
-  findBulletBlocker(shot, shotIndex) {
-    for (let j = this.active.effects.length - 1; j >= 0; j -= 1) {
-      if (j === shotIndex) continue;
-      const effect = this.active.effects[j];
-      if (!effect.friendlyAttack) continue;
-      if (effect.radius && ["slash", "ring", "triBurst"].includes(effect.type)) {
-        if (Math.hypot(shot.x - effect.x, shot.y - effect.y) <= shot.radius + effect.radius) return j;
-        continue;
-      }
-      const ax = effect.fromX || effect.x;
-      const ay = effect.fromY || effect.y;
-      const bx = effect.x;
-      const by = effect.y;
-      const vx = bx - ax;
-      const vy = by - ay;
-      const lenSq = vx * vx + vy * vy || 1;
-      const t = clamp(((shot.x - ax) * vx + (shot.y - ay) * vy) / lenSq, 0, 1);
-      const px = ax + vx * t;
-      const py = ay + vy * t;
-      if (Math.hypot(shot.x - px, shot.y - py) <= shot.radius + 14) return j;
-    }
-    return -1;
   },
 
 });
@@ -5037,11 +5188,11 @@ Object.assign(RogueGame.prototype, {
     ui.settingsMenu.classList.add("hidden");
     ui.settingsContent.classList.remove("hidden");
     ui.settingsContent.innerHTML = "";
-    ui.settingsContent.appendChild(this.settingsBackButton());
     const copy = document.createElement("p");
     copy.className = "modal-copy";
     copy.textContent = "移动，攻击，刷新。第 10 层只有 Boss。";
     ui.settingsContent.appendChild(copy);
+    ui.settingsContent.appendChild(this.settingsBackButton());
   },
 
   renderAudioSettings() {
@@ -5049,7 +5200,6 @@ Object.assign(RogueGame.prototype, {
     ui.settingsMenu.classList.add("hidden");
     ui.settingsContent.classList.remove("hidden");
     ui.settingsContent.innerHTML = "";
-    ui.settingsContent.appendChild(this.settingsBackButton());
     const panel = document.createElement("div");
     panel.className = "audio-settings";
     panel.innerHTML = `
@@ -5059,6 +5209,7 @@ Object.assign(RogueGame.prototype, {
       <label class="check-row"><input id="music-muted" type="checkbox" ${this.audioSettings.musicMuted ? "checked" : ""}> 关闭背景音效</label>
     `;
     ui.settingsContent.appendChild(panel);
+    ui.settingsContent.appendChild(this.settingsBackButton());
     panel.querySelector("#sfx-volume").addEventListener("input", (event) => {
       this.audioSettings.sfxVolume = Number(event.target.value);
       this.sfx.setSfxVolume(this.audioSettings.sfxVolume);
